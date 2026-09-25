@@ -137,7 +137,7 @@ The number shown is the rating rounded to an integer, then `±` the integer roun
 
 Against the next-weaker ranked track, the gap is "clear of the next track" when the rating gap is larger than twice the sum of the two widened deviations. Otherwise the gap is "overlapping the next track". The strongest track has no track above it. The weakest has no next-weaker track, so the hint is omitted there.
 
-Duels are the source of truth. Each one stores the UTC time, both URLs, the display title, artist, and album heard at the time, the outcome, and the mode (`place` or `sharpen`). The track table is a cache of strengths rebuilt from those duels. Replaying the duel list from unrated strengths must reproduce the cache.
+Duels are the source of truth. Each one stores the UTC time, both URLs, the display title, artist, and album heard at the time, the outcome, and the mode (`place` or `sharpen`). The track table is a cache of strengths rebuilt from those duels. Replaying the duel list from unrated strengths must reproduce the cache. A later comparison replaces a cached title, artist, or album only when the new value is non-empty, so a missing tag does not erase a name already known for that URL.
 
 Opening a view does not write the file. An answer does.
 

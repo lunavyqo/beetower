@@ -8,7 +8,7 @@ The ranking method is specified in [docs/rating-model.md](docs/rating-model.md).
 
 ## Status
 
-A Glicko-2 strength update, including how a rating grows uncertain over time, is implemented and covered by tests. Choosing which pair to ask, saving the ladder, and the MusicBee panel are not built yet.
+The engine can update a strength and fold each answer into a ladder that ranks tracks and rebuilds that rank from the duel history. Choosing the next question, saving the ladder, and the MusicBee panel are not built yet.
 
 ## Requirements
 
