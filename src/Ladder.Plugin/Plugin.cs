@@ -68,14 +68,19 @@ public partial class Plugin
         {
             Save();
         }
+        else if (type == NotificationType.TrackChanged || type == NotificationType.PlayStateChanged)
+        {
+            if (_session != null)
+            {
+                _session.SetPlaying(PlayingUrl());
+            }
+        }
     }
 
     public int OnDockablePanelCreated(Control panel)
     {
         EnsureSession();
-        _panelView = new LadderView(_session);
-        _panelView.Dock = DockStyle.Fill;
-        _panelView.RankChosen += OnRankChosen;
+        _panelView = CreateView();
         panel.Controls.Add(_panelView);
         return -1;
     }
@@ -91,6 +96,9 @@ public partial class Plugin
         string path = Path.Combine(root, "ladder", "ladder.json");
         _session = new LadderSession(path);
         _session.PlaceUrlRequested += PlacePlaying;
+        _session.PlayRequested += OnPlayRequested;
+        _session.LoadArt = LoadArt;
+        _session.SetPlaying(PlayingUrl());
     }
 
     private void AddMenus()
@@ -104,8 +112,15 @@ public partial class Plugin
         _api.MB_AddMenuItem("context.Main/Ladder: Place selected track", null, PlaceSelected);
         _api.MB_AddMenuItem("context.Playlist/Ladder: Place selected track", null, PlaceSelected);
         _api.MB_AddMenuItem("context.NowPlayingList/Ladder: Place this track", null, PlaceSelected);
+        _api.MB_AddMenuItem("mnuView/Ladder", null, OpenLadder);
         _api.MB_AddMenuItem("mnuTools/Ladder: Place the playing track", "Tools: Place the playing track", PlacePlaying);
         _api.MB_RegisterCommand("Ladder: Place the playing track", PlacePlaying);
+    }
+
+    private void OpenLadder(object sender, EventArgs args)
+    {
+        EnsureSession();
+        Reveal();
     }
 
     private void PlaceSelected(object sender, EventArgs args)
@@ -138,10 +153,87 @@ public partial class Plugin
         Reveal();
     }
 
-    private void OnRankChosen(object sender, string url)
+    private void OnPlayRequested(object sender, string url)
     {
-        EnsureSession();
-        _session.Place(SnapshotOf(url));
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        if (string.Equals(PlayingUrl(), url, StringComparison.Ordinal))
+        {
+            _api.Player_PlayPause();
+            return;
+        }
+
+        _api.NowPlayingList_PlayNow(url);
+        _session.SetPlaying(url);
+    }
+
+    private Image LoadArt(string url)
+    {
+        PictureLocations locations;
+        string pictureUrl;
+        byte[] imageData;
+        if (_api.Library_GetArtworkEx(url, 0, true, out locations, out pictureUrl, out imageData)
+            && imageData != null
+            && imageData.Length > 0)
+        {
+            return DecodeBytes(imageData);
+        }
+
+        if (!string.IsNullOrWhiteSpace(pictureUrl))
+        {
+            return DecodeArt(pictureUrl);
+        }
+
+        return DecodeArt(_api.Library_GetArtworkUrl(url, 0));
+    }
+
+    private static Image DecodeBytes(byte[] bytes)
+    {
+        using (MemoryStream stream = new MemoryStream(bytes))
+        using (Image image = Image.FromStream(stream))
+        {
+            return new Bitmap(image);
+        }
+    }
+
+    private static Image DecodeArt(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        string text = raw.Trim();
+        if (text.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            text = new Uri(text).LocalPath;
+        }
+
+        if (File.Exists(text))
+        {
+            using (Image image = Image.FromFile(text))
+            {
+                return new Bitmap(image);
+            }
+        }
+
+        int comma = text.IndexOf(',');
+        if (text.StartsWith("data:", StringComparison.OrdinalIgnoreCase) && comma >= 0)
+        {
+            text = text.Substring(comma + 1);
+        }
+
+        try
+        {
+            return DecodeBytes(Convert.FromBase64String(text));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     private string SelectedUrl()
@@ -180,29 +272,78 @@ public partial class Plugin
         return value ?? "";
     }
 
-    private void Reveal()
+    private LadderView CreateView()
     {
-        if (_panelView != null && !_panelView.IsDisposed)
+        LadderView view = new LadderView(_session);
+        view.Dock = DockStyle.Fill;
+        ApplyPalette(view);
+        return view;
+    }
+
+    private void ApplyPalette(LadderView view)
+    {
+        try
         {
-            return;
+            Color background = FromMusicBee(_api.Setting_GetSkinElementColour(
+                SkinElement.SkinInputPanel,
+                ElementState.ElementStateDefault,
+                ElementComponent.ComponentBackground));
+            Color text = FromMusicBee(_api.Setting_GetSkinElementColour(
+                SkinElement.SkinInputPanel,
+                ElementState.ElementStateDefault,
+                ElementComponent.ComponentForeground));
+            if (background.GetBrightness() < 0.08f && text.GetBrightness() < 0.08f)
+            {
+                return;
+            }
+
+            Color muted = Blend(text, background, 0.45f);
+            Color accent = background.GetBrightness() < 0.5f ? Color.FromArgb(245, 245, 245) : Color.FromArgb(20, 20, 20);
+            view.ApplyPalette(background, text, muted, accent);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static Color FromMusicBee(int value)
+    {
+        Color color = (value & 0xFF000000) == 0
+            ? Color.FromArgb(255, value & 255, (value >> 8) & 255, (value >> 16) & 255)
+            : Color.FromArgb(value);
+        if (color.A == 0)
+        {
+            color = Color.FromArgb(255, color);
         }
 
+        return color;
+    }
+
+    private static Color Blend(Color from, Color to, float amount)
+    {
+        int Mix(byte start, byte end)
+        {
+            return start + (int)((end - start) * amount);
+        }
+
+        return Color.FromArgb(Mix(from.R, to.R), Mix(from.G, to.G), Mix(from.B, to.B));
+    }
+
+    private void Reveal()
+    {
         if (_window == null || _window.IsDisposed)
         {
             _window = new Form
             {
                 Text = "Ladder",
-                StartPosition = FormStartPosition.CenterParent,
-                MinimumSize = new Size(380, 520),
-                ClientSize = new Size(440, 680),
-                AutoScaleMode = AutoScaleMode.Font,
+                StartPosition = FormStartPosition.Manual,
+                MinimumSize = new Size(760, 520),
+                ShowInTaskbar = false,
             };
-            var view = new LadderView(_session);
-            view.Dock = DockStyle.Fill;
-            view.RankChosen += OnRankChosen;
-            _window.Controls.Add(view);
+            _window.Controls.Add(CreateView());
         }
 
+        FitWindowToPlayer();
         if (!_window.Visible)
         {
             IntPtr owner = _api.MB_GetWindowHandle();
@@ -219,6 +360,19 @@ public partial class Plugin
         {
             _window.Activate();
         }
+    }
+
+    private void FitWindowToPlayer()
+    {
+        Rectangle area = _api.MB_GetPanelBounds(PluginPanelDock.ApplicationWindow);
+        if (area.Width < 640 || area.Height < 420)
+        {
+            _window.WindowState = FormWindowState.Maximized;
+            return;
+        }
+
+        _window.WindowState = FormWindowState.Normal;
+        _window.Bounds = area;
     }
 
     private void Save()

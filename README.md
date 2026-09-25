@@ -19,14 +19,18 @@ Copy these two files into MusicBee's Plugins folder (for a normal install, `C:\P
 - `src/Ladder.Plugin/bin/Release/net48/mb_Ladder.dll`
 - `src/Ladder.Plugin/bin/Release/net48/Ladder.Engine.dll`
 
-Restart MusicBee, then enable Ladder under Preferences, Plugins. The panel is named Ladder. Add it from the panel layout, or use Tools, "Ladder: Place the playing track". A right-click on a track in the main list also offers "Ladder: Place selected track".
+Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **View → Ladder**. That window fills the player: two songs side by side, and the left and right arrow keys switch which one is playing.
+
+To keep it as its own tab, click the **+** on the tab bar, open **View → Arrange Panels**, and drag **Ladder** into the main panel of that tab. Leave the other elements of that tab empty.
 
 Answers are stored in `ladder\ladder.json` under MusicBee's persistent storage folder. Removing the plugin leaves that file where it is.
 
 ## Asking
 
-Place mode keeps the track you chose on top and compares it with one track from the middle of the current ladder, then half of what remains, until the slot is narrow. It then asks about the songs that ended up directly beside it.
+The two covers take the screen. Click a cover, or press the left and right arrows, to play that song. **Prefer this** under a cover is the rating. Listening and choosing are separate, so you can flip between the pair before you decide.
 
-Sharpen mode asks about two tracks whose ratings are close and still uncertain. "About the same" is a real answer. Skip does not record one.
+Place mode keeps the track you chose on the left and compares it with one track from the middle of the current ladder, then half of what remains, until the slot is narrow. It then asks about the songs that ended up directly beside it.
+
+Sharpen mode asks about two tracks whose ratings are close and still uncertain. **About the same** is a real answer. Skip does not record one.
 
 The number on a track looks like `1640 ± 80`. The first figure is the strength. The `±` is how wide that estimate still is. A new track says "not placed" until it has been compared.

@@ -1,3 +1,4 @@
+using System.Drawing;
 using Ladder;
 
 namespace MusicBeePlugin;
@@ -31,11 +32,71 @@ internal sealed class LadderSession
 
     public event EventHandler Changed;
 
+    public event EventHandler<string> PlayRequested;
+
     public ComparisonController Controller { get; private set; }
 
     public string LoadError { get; }
 
     public string Note { get; private set; }
+
+    public string PlayingUrl { get; private set; }
+
+    public Func<string, Image> LoadArt { get; set; }
+
+    private readonly Dictionary<string, Image> _art = new Dictionary<string, Image>(StringComparer.Ordinal);
+
+    public Image ArtFor(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return null;
+        }
+
+        Image cached;
+        if (_art.TryGetValue(url, out cached))
+        {
+            return cached;
+        }
+
+        Image loaded = null;
+        try
+        {
+            if (LoadArt != null)
+            {
+                loaded = LoadArt(url);
+            }
+        }
+        catch (Exception)
+        {
+            loaded = null;
+        }
+
+        _art[url] = loaded;
+        return loaded;
+    }
+
+    public void RequestPlay(string url)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        PlayRequested?.Invoke(this, url);
+    }
+
+    public void SetPlaying(string url)
+    {
+        string next = url ?? "";
+        if (string.Equals(PlayingUrl, next, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        PlayingUrl = next;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public void Place(TrackSnapshot focus)
     {

@@ -3,28 +3,151 @@ using Ladder;
 
 namespace MusicBeePlugin;
 
+internal sealed class CoverBox : Control
+{
+    private Image _art;
+    private bool _playing;
+    private string _mark = "";
+
+    public CoverBox()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        Cursor = Cursors.Hand;
+        BackColor = Color.FromArgb(24, 24, 24);
+    }
+
+    public Image Art
+    {
+        get { return _art; }
+        set
+        {
+            _art = value;
+            Invalidate();
+        }
+    }
+
+    public bool Playing
+    {
+        get { return _playing; }
+        set
+        {
+            _playing = value;
+            Invalidate();
+        }
+    }
+
+    public string Mark
+    {
+        get { return _mark; }
+        set
+        {
+            _mark = value ?? "";
+            Invalidate();
+        }
+    }
+
+    public Color FrameColor { get; set; } = Color.White;
+
+    public event EventHandler Activate;
+
+    protected override void OnClick(EventArgs e)
+    {
+        base.OnClick(e);
+        Activate?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Graphics graphics = e.Graphics;
+        graphics.Clear(BackColor);
+        Rectangle box = ClientRectangle;
+        box.Inflate(-1, -1);
+        if (_playing)
+        {
+            using (Pen pen = new Pen(FrameColor, 4))
+            {
+                graphics.DrawRectangle(pen, 2, 2, Width - 6, Height - 6);
+            }
+
+            box.Inflate(-10, -10);
+        }
+
+        if (_art != null)
+        {
+            graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(_art, Fit(_art.Size, box));
+        }
+        else if (_mark.Length > 0)
+        {
+            using (Font font = new Font(Font.FontFamily, Math.Max(28, box.Height / 5f), FontStyle.Bold, GraphicsUnit.Pixel))
+            using (Brush brush = new SolidBrush(FrameColor))
+            using (StringFormat format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                graphics.DrawString(_mark.Substring(0, 1), font, brush, box, format);
+            }
+        }
+
+        DrawPlay(graphics, box);
+    }
+
+    private void DrawPlay(Graphics graphics, Rectangle box)
+    {
+        int size = Math.Max(28, box.Width / 10);
+        Rectangle badge = new Rectangle(box.X + 12, box.Bottom - size - 12, size, size);
+        using (Brush wash = new SolidBrush(Color.FromArgb(_playing ? 230 : 160, 0, 0, 0)))
+        {
+            graphics.FillEllipse(wash, badge);
+        }
+
+        Point[] triangle =
+        {
+            new Point(badge.X + size / 3, badge.Y + size / 4),
+            new Point(badge.X + size / 3, badge.Bottom - size / 4),
+            new Point(badge.Right - size / 5, badge.Y + size / 2),
+        };
+        using (Brush brush = new SolidBrush(Color.White))
+        {
+            graphics.FillPolygon(brush, triangle);
+        }
+    }
+
+    private static Rectangle Fit(Size image, Rectangle bounds)
+    {
+        if (image.Width <= 0 || image.Height <= 0)
+        {
+            return bounds;
+        }
+
+        float scale = Math.Min(bounds.Width / (float)image.Width, bounds.Height / (float)image.Height);
+        int width = Math.Max(1, (int)(image.Width * scale));
+        int height = Math.Max(1, (int)(image.Height * scale));
+        return new Rectangle(
+            bounds.X + (bounds.Width - width) / 2,
+            bounds.Y + (bounds.Height - height) / 2,
+            width,
+            height);
+    }
+}
+
 internal sealed class LadderView : UserControl
 {
     private readonly LadderSession _session;
     private readonly Label _status;
-    private readonly Label _bandHint;
-    private readonly TableLayoutPanel _topCard;
-    private readonly TableLayoutPanel _bottomCard;
-    private readonly Label _topCaption;
-    private readonly Label _topTitle;
-    private readonly Label _topDetail;
-    private readonly Label _topScore;
-    private readonly Button _topChoose;
-    private readonly Label _bottomCaption;
-    private readonly Label _bottomTitle;
-    private readonly Label _bottomDetail;
-    private readonly Label _bottomScore;
-    private readonly Button _bottomChoose;
+    private readonly CoverBox _leftCover;
+    private readonly CoverBox _rightCover;
+    private readonly Label _leftTitle;
+    private readonly Label _rightTitle;
+    private readonly Label _leftDetail;
+    private readonly Label _rightDetail;
+    private readonly Label _leftScore;
+    private readonly Label _rightScore;
+    private readonly Button _leftPrefer;
+    private readonly Button _rightPrefer;
     private readonly Button _same;
     private readonly Button _skip;
     private readonly Button _placePlaying;
     private readonly Button _sharpen;
-    private readonly ListView _ranks;
+    private readonly Label _hint;
 
     public LadderView(LadderSession session)
     {
@@ -34,98 +157,102 @@ internal sealed class LadderView : UserControl
         }
 
         _session = session;
-        AutoScaleMode = AutoScaleMode.Font;
+        DoubleBuffered = true;
+        TabStop = true;
         Dock = DockStyle.Fill;
-        Padding = new Padding(8);
+        BackColor = Color.FromArgb(18, 18, 18);
+        ForeColor = Color.FromArgb(245, 245, 245);
+        Font = new Font("Segoe UI", 10f);
 
-        _status = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            Text = "Ladder",
-        };
-        _bandHint = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            ForeColor = SystemColors.GrayText,
-            Text = "The number is an estimate. ± is how far it can still move.",
-        };
+        _status = MakeLabel(11f, FontStyle.Regular, true);
+        _hint = MakeLabel(9f, FontStyle.Regular, true);
+        _hint.Text = "Click a cover, or press the left and right arrows, to switch which song is playing.";
 
-        _topCard = Card(out _topCaption, out _topTitle, out _topDetail, out _topScore, out _topChoose);
-        _bottomCard = Card(out _bottomCaption, out _bottomTitle, out _bottomDetail, out _bottomScore, out _bottomChoose);
-        _topChoose.Click += (sender, args) => Choose(ComparisonChoice.Left);
-        _bottomChoose.Click += (sender, args) => Choose(ComparisonChoice.Right);
+        _leftCover = new CoverBox();
+        _rightCover = new CoverBox();
+        _leftCover.Activate += (sender, args) => Play(true);
+        _rightCover.Activate += (sender, args) => Play(false);
 
-        _same = new Button { Text = "About the same", AutoSize = true, Margin = new Padding(0, 8, 8, 8) };
-        _skip = new Button { Text = "Skip", AutoSize = true, Margin = new Padding(0, 8, 0, 8) };
+        _leftTitle = MakeLabel(18f, FontStyle.Bold, false);
+        _rightTitle = MakeLabel(18f, FontStyle.Bold, false);
+        _leftDetail = MakeLabel(11f, FontStyle.Regular, true);
+        _rightDetail = MakeLabel(11f, FontStyle.Regular, true);
+        _leftScore = MakeLabel(12f, FontStyle.Regular, false);
+        _rightScore = MakeLabel(12f, FontStyle.Regular, false);
+
+        _leftPrefer = MakeButton("Prefer this");
+        _rightPrefer = MakeButton("Prefer this");
+        _same = MakeButton("About the same");
+        _skip = MakeButton("Skip");
+        _placePlaying = MakeButton("Place playing");
+        _sharpen = MakeButton("Sharpen");
+
+        _leftPrefer.Click += (sender, args) => Choose(ComparisonChoice.Left);
+        _rightPrefer.Click += (sender, args) => Choose(ComparisonChoice.Right);
         _same.Click += (sender, args) => Choose(ComparisonChoice.Same);
         _skip.Click += (sender, args) => Run(delegate { _session.Skip(); });
-
-        var middle = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            WrapContents = false,
-        };
-        middle.Controls.Add(_same);
-        middle.Controls.Add(_skip);
-
-        _placePlaying = new Button { Text = "Place the playing track", AutoSize = true, Margin = new Padding(0, 0, 8, 8) };
-        _sharpen = new Button { Text = "Sharpen close pairs", AutoSize = true, Margin = new Padding(0, 0, 0, 8) };
         _placePlaying.Click += (sender, args) => _session.PlacePlayingRequested();
         _sharpen.Click += (sender, args) => Run(delegate { _session.Sharpen(); });
 
-        var actions = new FlowLayoutPanel
+        Controls.AddRange(new Control[]
         {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            WrapContents = true,
-        };
-        actions.Controls.Add(_placePlaying);
-        actions.Controls.Add(_sharpen);
-
-        _ranks = new ListView
-        {
-            Dock = DockStyle.Fill,
-            View = View.Details,
-            FullRowSelect = true,
-            HeaderStyle = ColumnHeaderStyle.Nonclickable,
-            HideSelection = false,
-            MultiSelect = false,
-        };
-        _ranks.Columns.Add("Rank", 52);
-        _ranks.Columns.Add("Title", 180);
-        _ranks.Columns.Add("Score", 110);
-        _ranks.Columns.Add("Against the next", 160);
-        _ranks.DoubleClick += RankDoubleClick;
-
-        var table = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 7,
-        };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        table.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        table.Controls.Add(_status, 0, 0);
-        table.Controls.Add(_topCard, 0, 1);
-        table.Controls.Add(middle, 0, 2);
-        table.Controls.Add(_bottomCard, 0, 3);
-        table.Controls.Add(actions, 0, 4);
-        table.Controls.Add(_bandHint, 0, 5);
-        table.Controls.Add(_ranks, 0, 6);
-        Controls.Add(table);
+            _status, _leftCover, _rightCover, _leftTitle, _rightTitle, _leftDetail, _rightDetail,
+            _leftScore, _rightScore, _leftPrefer, _rightPrefer, _same, _skip, _placePlaying, _sharpen, _hint,
+        });
 
         _session.Changed += OnChanged;
         Disposed += (sender, args) => _session.Changed -= OnChanged;
         RefreshView();
+    }
+
+    public void ApplyPalette(Color background, Color text, Color muted, Color accent)
+    {
+        BackColor = background;
+        ForeColor = text;
+        _status.ForeColor = text;
+        _hint.ForeColor = muted;
+        _leftTitle.ForeColor = text;
+        _rightTitle.ForeColor = text;
+        _leftDetail.ForeColor = muted;
+        _rightDetail.ForeColor = muted;
+        _leftScore.ForeColor = text;
+        _rightScore.ForeColor = text;
+        _leftCover.BackColor = background;
+        _rightCover.BackColor = background;
+        _leftCover.FrameColor = accent;
+        _rightCover.FrameColor = accent;
+        Color buttonBack = Blend(background, text, 0.12f);
+        foreach (Button button in new[] { _leftPrefer, _rightPrefer, _same, _skip, _placePlaying, _sharpen })
+        {
+            button.BackColor = buttonBack;
+            button.ForeColor = text;
+            button.FlatAppearance.BorderColor = muted;
+        }
+
+        Invalidate(true);
+    }
+
+    protected override bool ProcessCmdKey(ref Message message, Keys keyData)
+    {
+        if (keyData == Keys.Left)
+        {
+            Play(true);
+            return true;
+        }
+
+        if (keyData == Keys.Right)
+        {
+            Play(false);
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref message, keyData);
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        LayoutStage();
     }
 
     private void OnChanged(object sender, EventArgs args)
@@ -148,15 +275,23 @@ internal sealed class LadderView : UserControl
     {
         ComparisonPrompt prompt = _session.Controller.Current;
         bool asking = prompt != null;
-        _topCard.Visible = asking;
-        _bottomCard.Visible = asking;
-        _same.Enabled = asking;
-        _skip.Enabled = asking;
-        _same.Parent.Visible = asking;
+        _leftCover.Visible = asking;
+        _rightCover.Visible = asking;
+        _leftTitle.Visible = asking;
+        _rightTitle.Visible = asking;
+        _leftDetail.Visible = asking;
+        _rightDetail.Visible = asking;
+        _leftScore.Visible = asking;
+        _rightScore.Visible = asking;
+        _leftPrefer.Visible = asking;
+        _rightPrefer.Visible = asking;
+        _same.Visible = asking;
+        _skip.Visible = asking;
+        _hint.Visible = asking;
 
         if (!string.IsNullOrEmpty(_session.LoadError))
         {
-            _status.Text = _session.LoadError + " The file was left unchanged.";
+            _status.Text = _session.LoadError;
         }
         else if (!string.IsNullOrEmpty(_session.Note))
         {
@@ -164,53 +299,36 @@ internal sealed class LadderView : UserControl
         }
         else if (_session.Controller.NeedsAnotherTrack)
         {
-            _status.Text = "Ladder needs a second track before it can ask which you prefer.";
+            _status.Text = "Place one more track. Ladder needs two songs before it can ask.";
         }
         else if (prompt != null && prompt.Mode == ComparisonMode.Place)
         {
-            _status.Text = "Placing \"" + DisplayTitle(prompt.Left) + "\". Does it beat the other track?";
+            _status.Text = "Does the song on the left beat the one on the right?";
         }
         else if (prompt != null)
         {
-            _status.Text = "Which of these do you prefer? Close calls are what settle the order.";
+            _status.Text = "Which of these do you prefer?";
         }
         else
         {
             _status.Text = "Place a track, or sharpen the pairs that are still close.";
         }
 
-        IReadOnlyList<RankedTrack> rank = _session.Controller.Rank(DateTime.UtcNow);
         if (asking)
         {
-            bool placing = prompt.Mode == ComparisonMode.Place;
-            Fill(_topCaption, _topTitle, _topDetail, _topScore, prompt.Left, placing ? "Placing" : "First track", rank);
-            Fill(_bottomCaption, _bottomTitle, _bottomDetail, _bottomScore, prompt.Right, placing ? "Compared with" : "Second track", rank);
-        }
-        _ranks.BeginUpdate();
-        _ranks.Items.Clear();
-        foreach (RankedTrack row in rank)
-        {
-            var item = new ListViewItem(row.Rank.ToString(CultureInfo.InvariantCulture));
-            item.SubItems.Add(DisplayTitle(row.Track));
-            item.SubItems.Add(row.ScoreText);
-            item.SubItems.Add(row.Gap);
-            item.Tag = row.Track.Url;
-            _ranks.Items.Add(item);
+            IReadOnlyList<RankedTrack> rank = _session.Controller.Rank(DateTime.UtcNow);
+            Fill(_leftCover, _leftTitle, _leftDetail, _leftScore, prompt.Left, rank);
+            Fill(_rightCover, _rightTitle, _rightDetail, _rightScore, prompt.Right, rank);
         }
 
-        _ranks.EndUpdate();
+        LayoutStage();
     }
 
-    private static void Fill(
-        Label caption,
-        Label title,
-        Label detail,
-        Label score,
-        TrackSnapshot track,
-        string captionText,
-        IReadOnlyList<RankedTrack> rank)
+    private void Fill(CoverBox cover, Label title, Label detail, Label score, TrackSnapshot track, IReadOnlyList<RankedTrack> rank)
     {
-        caption.Text = captionText;
+        cover.Art = _session.ArtFor(track.Url);
+        cover.Mark = DisplayTitle(track);
+        cover.Playing = string.Equals(_session.PlayingUrl, track.Url, StringComparison.Ordinal);
         title.Text = DisplayTitle(track);
         detail.Text = JoinDetail(track.Artist, track.Album);
         score.Text = ScoreFor(track.Url, rank);
@@ -220,118 +338,84 @@ internal sealed class LadderView : UserControl
     {
         foreach (RankedTrack row in rank)
         {
-            if (string.Equals(row.Track.Url, url, StringComparison.Ordinal))
+            if (!string.Equals(row.Track.Url, url, StringComparison.Ordinal))
             {
-                return row.ScoreText;
+                continue;
             }
+
+            if (string.IsNullOrEmpty(row.Gap))
+            {
+                return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "   " + row.ScoreText;
+            }
+
+            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "   " + row.ScoreText + "   " + row.Gap;
         }
 
         return RatingText.NotPlaced;
     }
 
-    protected override void OnSizeChanged(EventArgs e)
+    private void LayoutStage()
     {
-        base.OnSizeChanged(e);
-        if (_status == null || _bandHint == null || _topTitle == null || _bottomTitle == null)
+        int pad = 28;
+        int width = ClientSize.Width;
+        int height = ClientSize.Height;
+        if (width < 40 || height < 40)
         {
             return;
         }
 
-        int width = Math.Max(80, ClientSize.Width - 24);
-        var limit = new Size(width, 0);
-        _status.MaximumSize = limit;
-        _bandHint.MaximumSize = limit;
-        _topTitle.MaximumSize = limit;
-        _topDetail.MaximumSize = limit;
-        _bottomTitle.MaximumSize = limit;
-        _bottomDetail.MaximumSize = limit;
-    }
+        _status.SetBounds(pad, 16, width - pad * 2, 28);
 
-    private static TableLayoutPanel Card(
-        out Label caption,
-        out Label title,
-        out Label detail,
-        out Label score,
-        out Button choose)
-    {
-        caption = Line(FontStyle.Regular, SystemColors.GrayText);
-        title = Line(FontStyle.Bold, SystemColors.ControlText);
-        detail = Line(FontStyle.Regular, SystemColors.ControlText);
-        score = Line(FontStyle.Regular, SystemColors.ControlText);
-        choose = new Button
-        {
-            Text = "This one",
-            AutoSize = true,
-            Dock = DockStyle.Top,
-            Margin = new Padding(0, 4, 0, 0),
-        };
+        int footerTop = height - 52;
+        _placePlaying.SetBounds(pad, footerTop, 140, 32);
+        _sharpen.SetBounds(pad + 148, footerTop, 110, 32);
 
-        var card = new TableLayoutPanel
+        if (!_leftCover.Visible)
         {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            Padding = new Padding(0, 8, 0, 0),
-        };
-        card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        card.Controls.Add(caption, 0, 0);
-        card.Controls.Add(title, 0, 1);
-        card.Controls.Add(detail, 0, 2);
-        card.Controls.Add(score, 0, 3);
-        card.Controls.Add(choose, 0, 4);
-        return card;
-    }
-
-    private static Label Line(FontStyle style, Color color)
-    {
-        return new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            Font = new Font(SystemFonts.MessageBoxFont, style),
-            ForeColor = color,
-            MaximumSize = new Size(420, 0),
-        };
-    }
-
-    private static string DisplayTitle(TrackSnapshot track)
-    {
-        if (!string.IsNullOrEmpty(track.Title))
-        {
-            return track.Title;
+            return;
         }
 
-        string file = Path.GetFileName(track.Url);
-        return string.IsNullOrEmpty(file) ? track.Url : file;
+        int center = 150;
+        int textBlock = 132;
+        int top = 52;
+        int bottom = footerTop - 12;
+        int side = Math.Min((width - pad * 2 - center - 48) / 2, bottom - top - textBlock);
+        if (side < 96)
+        {
+            side = 96;
+        }
+
+        int group = side * 2 + center + 48;
+        int x = Math.Max(pad, (width - group) / 2);
+        int y = top + Math.Max(0, (bottom - top - textBlock - side) / 2);
+
+        PlaceSide(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftPrefer, x, y, side);
+        PlaceSide(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightPrefer, x + side + center + 48, y, side);
+
+        int midX = x + side + 24;
+        _same.SetBounds(midX, y + side / 2 - 20, center, 34);
+        _skip.SetBounds(midX, y + side / 2 + 22, center, 34);
+        _hint.SetBounds(pad, footerTop - 28, width - pad * 2, 22);
     }
 
-    private static string DisplayTitle(TrackState track)
+    private static void PlaceSide(CoverBox cover, Label title, Label detail, Label score, Button prefer, int x, int y, int side)
     {
-        if (!string.IsNullOrEmpty(track.Title))
-        {
-            return track.Title;
-        }
-
-        string file = Path.GetFileName(track.Url);
-        return string.IsNullOrEmpty(file) ? track.Url : file;
+        cover.SetBounds(x, y, side, side);
+        title.SetBounds(x, y + side + 12, side, 28);
+        detail.SetBounds(x, y + side + 40, side, 22);
+        score.SetBounds(x, y + side + 62, side, 22);
+        prefer.SetBounds(x, y + side + 90, side, 36);
     }
 
-    private static string JoinDetail(string artist, string album)
+    private void Play(bool left)
     {
-        bool hasArtist = !string.IsNullOrEmpty(artist);
-        bool hasAlbum = !string.IsNullOrEmpty(album);
-        if (hasArtist && hasAlbum)
+        ComparisonPrompt prompt = _session.Controller.Current;
+        if (prompt == null)
         {
-            return artist + " — " + album;
+            return;
         }
 
-        if (hasArtist)
-        {
-            return artist;
-        }
-
-        return hasAlbum ? album : "";
+        _session.RequestPlay(left ? prompt.Left.Url : prompt.Right.Url);
     }
 
     private void Choose(ComparisonChoice choice)
@@ -351,19 +435,70 @@ internal sealed class LadderView : UserControl
         }
     }
 
-    private void RankDoubleClick(object sender, EventArgs args)
+    private Label MakeLabel(float size, FontStyle style, bool muted)
     {
-        if (_ranks.SelectedItems.Count == 0)
+        return new Label
         {
-            return;
-        }
-
-        string url = _ranks.SelectedItems[0].Tag as string;
-        if (!string.IsNullOrEmpty(url))
-        {
-            RankChosen?.Invoke(this, url);
-        }
+            AutoSize = false,
+            AutoEllipsis = true,
+            BackColor = Color.Transparent,
+            ForeColor = muted ? Color.FromArgb(170, 170, 170) : ForeColor,
+            Font = new Font(Font.FontFamily, size, style, GraphicsUnit.Point),
+            TextAlign = ContentAlignment.MiddleLeft,
+        };
     }
 
-    public event EventHandler<string> RankChosen;
+    private Button MakeButton(string text)
+    {
+        Button button = new Button
+        {
+            Text = text,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(36, 36, 36),
+            ForeColor = ForeColor,
+            Font = Font,
+            Cursor = Cursors.Hand,
+        };
+        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderColor = Color.FromArgb(90, 90, 90);
+        return button;
+    }
+
+    private static string DisplayTitle(TrackSnapshot track)
+    {
+        if (!string.IsNullOrEmpty(track.Title))
+        {
+            return track.Title;
+        }
+
+        string file = Path.GetFileName(track.Url);
+        return string.IsNullOrEmpty(file) ? track.Url : file;
+    }
+
+    private static string JoinDetail(string artist, string album)
+    {
+        bool hasArtist = !string.IsNullOrEmpty(artist);
+        bool hasAlbum = !string.IsNullOrEmpty(album);
+        if (hasArtist && hasAlbum)
+        {
+            return artist + "  ·  " + album;
+        }
+
+        if (hasArtist)
+        {
+            return artist;
+        }
+
+        return hasAlbum ? album : "";
+    }
+
+    private static Color Blend(Color from, Color to, float amount)
+    {
+        int channel(byte start, byte end)
+        {
+            return start + (int)((end - start) * amount);
+        }
+
+        return Color.FromArgb(channel(from.R, to.R), channel(from.G, to.G), channel(from.B, to.B));
+    }
 }
