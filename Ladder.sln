@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C1E4434D-F6BE-455F-AF9C-8997F1E227AB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ladder.Engine", "src\Ladder.Engine\Ladder.Engine.csproj", "{90007285-9E57-474C-A9BD-DDA734A79219}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ladder.Engine.Tests", "src\Ladder.Engine.Tests\Ladder.Engine.Tests.csproj", "{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{90007285-9E57-474C-A9BD-DDA734A79219}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90007285-9E57-474C-A9BD-DDA734A79219}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90007285-9E57-474C-A9BD-DDA734A79219}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90007285-9E57-474C-A9BD-DDA734A79219}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{90007285-9E57-474C-A9BD-DDA734A79219} = {C1E4434D-F6BE-455F-AF9C-8997F1E227AB}
+		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3} = {C1E4434D-F6BE-455F-AF9C-8997F1E227AB}
+	EndGlobalSection
+EndGlobal

@@ -8,7 +8,7 @@ The ranking method is specified in [docs/rating-model.md](docs/rating-model.md).
 
 ## Status
 
-The ranking model is specified. The engine, the saved ladder, and the MusicBee panel are not built yet.
+A Glicko-2 strength update, including how a rating grows uncertain over time, is implemented and covered by tests. Choosing which pair to ask, saving the ladder, and the MusicBee panel are not built yet.
 
 ## Requirements
 

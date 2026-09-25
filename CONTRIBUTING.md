@@ -14,13 +14,13 @@ Keep each commit to one logical change. Update [CHANGELOG.md](CHANGELOG.md) in t
 
 ## Checks
 
-Engine changes ship with tests. From the repository root, once the test project exists:
+Engine changes ship with tests. From the repository root, with the .NET 8 SDK:
 
 ```text
 dotnet test
 ```
 
-That needs the .NET 8 SDK. The MusicBee plugin targets .NET Framework 4.8, which the engine also builds for.
+`dotnet test` runs the tests on .NET 8. `dotnet build` also compiles the engine for .NET Framework 4.8, which is what MusicBee loads.
 
 ## Layout
 
