@@ -8,7 +8,7 @@ The ranking method is specified in [docs/rating-model.md](docs/rating-model.md).
 
 ## Status
 
-The engine can place one track and can pick the next close, uncertain pair to sharpen. Saving the ladder and the MusicBee panel are not built yet.
+The engine can place a track, pick a sharpening pair, and save that history as a version 1 JSON file. The MusicBee panel is not built yet. See [docs/ladder-file.md](docs/ladder-file.md).
 
 ## Requirements
 
