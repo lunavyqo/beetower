@@ -14,6 +14,9 @@ public partial class Plugin
     private bool _libraryLoaded;
     private bool _fillingQuestion;
     private bool _menusAdded;
+    private System.Windows.Forms.Timer _clock;
+    private string _pendingSeekUrl;
+    private double _pendingSeek = -1;
 
     static Plugin()
     {
@@ -76,6 +79,7 @@ public partial class Plugin
             if (_session != null)
             {
                 _session.SetPlaying(PlayingUrl());
+                ApplyPendingSeek();
             }
         }
     }
@@ -101,9 +105,69 @@ public partial class Plugin
         _session = new LadderSession(path);
         _session.PlaceUrlRequested += PlacePlaying;
         _session.PlayRequested += OnPlayRequested;
+        _session.SeekRequested += OnSeekRequested;
         _session.NeedsQuestion += (sender, args) => EnsureQuestion();
         _session.LoadArt = LoadArt;
         _session.SetPlaying(PlayingUrl());
+        _clock = new System.Windows.Forms.Timer();
+        _clock.Interval = 200;
+        _clock.Tick += OnClock;
+        _clock.Start();
+    }
+
+    private void OnClock(object sender, EventArgs args)
+    {
+        if (_session == null)
+        {
+            return;
+        }
+
+        string url = PlayingUrl();
+        if (!string.IsNullOrEmpty(url))
+        {
+            _session.NotePlayback(url, _api.Player_GetPosition(), _api.NowPlaying_GetDuration());
+        }
+
+        ApplyPendingSeek();
+    }
+
+    private void OnSeekRequested(object sender, SeekRequest request)
+    {
+        _pendingSeekUrl = request.Url;
+        _pendingSeek = request.Fraction;
+        if (!string.Equals(PlayingUrl(), request.Url, StringComparison.Ordinal))
+        {
+            _api.NowPlayingList_PlayNow(request.Url);
+            _session.SetPlaying(request.Url);
+            return;
+        }
+
+        ApplyPendingSeek();
+    }
+
+    private void ApplyPendingSeek()
+    {
+        if (_pendingSeek < 0 || string.IsNullOrEmpty(_pendingSeekUrl))
+        {
+            return;
+        }
+
+        if (!string.Equals(PlayingUrl(), _pendingSeekUrl, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        int duration = _api.NowPlaying_GetDuration();
+        if (duration <= 0)
+        {
+            return;
+        }
+
+        int position = (int)Math.Round(duration * _pendingSeek);
+        _api.Player_SetPosition(position);
+        _session.NotePlayback(_pendingSeekUrl, position, duration);
+        _pendingSeek = -1;
+        _pendingSeekUrl = null;
     }
 
     private void EnsureQuestion()

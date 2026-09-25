@@ -7,6 +7,19 @@ namespace MusicBeePlugin;
 /// The panel and the comparison window both talk to this. A failed load refuses later
 /// saves so a damaged ladder file is left on disk.
 /// </summary>
+internal sealed class SeekRequest : EventArgs
+{
+    public SeekRequest(string url, double fraction)
+    {
+        Url = url;
+        Fraction = fraction;
+    }
+
+    public string Url { get; }
+
+    public double Fraction { get; }
+}
+
 internal sealed class LadderSession
 {
     private readonly string _path;
@@ -32,6 +45,10 @@ internal sealed class LadderSession
     }
 
     public event EventHandler Changed;
+
+    public event EventHandler PlaybackChanged;
+
+    public event EventHandler<SeekRequest> SeekRequested;
 
     public event EventHandler NeedsQuestion;
 
@@ -70,6 +87,8 @@ internal sealed class LadderSession
     public Func<string, Image> LoadArt { get; set; }
 
     private readonly Dictionary<string, Image> _art = new Dictionary<string, Image>(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _positionMs = new Dictionary<string, int>(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _durationMs = new Dictionary<string, int>(StringComparer.Ordinal);
 
     public Image ArtFor(string url)
     {
@@ -99,6 +118,76 @@ internal sealed class LadderSession
 
         _art[url] = loaded;
         return loaded;
+    }
+
+    public void NotePlayback(string url, int positionMs, int durationMs)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        if (positionMs < 0)
+        {
+            positionMs = 0;
+        }
+
+        int previousPosition;
+        int previousDuration;
+        bool unchanged = _positionMs.TryGetValue(url, out previousPosition)
+            && previousPosition == positionMs
+            && _durationMs.TryGetValue(url, out previousDuration)
+            && previousDuration == durationMs
+            && string.Equals(PlayingUrl, url, StringComparison.Ordinal);
+        _positionMs[url] = positionMs;
+        if (durationMs > 0)
+        {
+            _durationMs[url] = durationMs;
+        }
+
+        if (!string.Equals(PlayingUrl, url, StringComparison.Ordinal))
+        {
+            PlayingUrl = url;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        if (!unchanged)
+        {
+            PlaybackChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void TryPlayback(string url, out int positionMs, out int durationMs)
+    {
+        positionMs = 0;
+        durationMs = 0;
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        _positionMs.TryGetValue(url, out positionMs);
+        _durationMs.TryGetValue(url, out durationMs);
+    }
+
+    public void RequestSeek(string url, double fraction)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        if (fraction < 0)
+        {
+            fraction = 0;
+        }
+
+        if (fraction > 1)
+        {
+            fraction = 1;
+        }
+
+        SeekRequested?.Invoke(this, new SeekRequest(url, fraction));
     }
 
     public void RequestPlay(string url)

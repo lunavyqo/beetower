@@ -12,8 +12,48 @@ internal sealed class Meter : Control
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         TabStop = false;
         Height = 8;
+        Cursor = Cursors.Hand;
         TrackColor = Color.FromArgb(48, 48, 48);
         FillColor = Color.FromArgb(230, 230, 230);
+    }
+
+    public event EventHandler<double> Scrubbed;
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        Scrub(e.X);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (e.Button == MouseButtons.Left)
+        {
+            Scrub(e.X);
+        }
+    }
+
+    private void Scrub(int x)
+    {
+        if (Width <= 1)
+        {
+            return;
+        }
+
+        double fraction = x / (double)(Width - 1);
+        if (fraction < 0)
+        {
+            fraction = 0;
+        }
+
+        if (fraction > 1)
+        {
+            fraction = 1;
+        }
+
+        Fraction = fraction;
+        Scrubbed?.Invoke(this, fraction);
     }
 
     public double Fraction
@@ -192,12 +232,10 @@ internal sealed class LadderView : UserControl
 {
     private readonly LadderSession _session;
     private readonly Label _status;
-    private readonly Label _libraryCaption;
-    private readonly Meter _libraryMeter;
-    private readonly Label _songCaption;
-    private readonly Meter _songMeter;
     private readonly Meter _leftMeter;
     private readonly Meter _rightMeter;
+    private readonly Label _leftTime;
+    private readonly Label _rightTime;
     private readonly CoverBox _leftCover;
     private readonly CoverBox _rightCover;
     private readonly Label _leftTitle;
@@ -228,16 +266,14 @@ internal sealed class LadderView : UserControl
         Font = new Font("Segoe UI", 10f);
 
         _status = MakeLabel(11f, FontStyle.Regular, true);
-        _libraryCaption = MakeLabel(9f, FontStyle.Regular, true);
-        _libraryCaption.Text = "0 of 0 placed";
-        _songCaption = MakeLabel(9f, FontStyle.Regular, true);
-        _songCaption.Text = "Placing this song";
-        _libraryMeter = new Meter();
-        _songMeter = new Meter();
         _leftMeter = new Meter();
         _rightMeter = new Meter();
+        _leftTime = MakeLabel(9f, FontStyle.Regular, true);
+        _rightTime = MakeLabel(9f, FontStyle.Regular, true);
+        _leftTime.Text = "0:00";
+        _rightTime.Text = "0:00";
         _hint = MakeLabel(9f, FontStyle.Regular, true);
-        _hint.Text = "Click a cover, or press the left and right arrows, to switch which song is playing.";
+        _hint.Text = "Click a cover or press the arrow keys to switch songs. Drag a bar to move through that song.";
 
         _leftCover = new CoverBox();
         _rightCover = new CoverBox();
@@ -256,6 +292,9 @@ internal sealed class LadderView : UserControl
         _same = MakeButton("About the same");
         _skip = MakeButton("Skip");
 
+        _leftMeter.Scrubbed += (sender, fraction) => Scrub(true, fraction);
+        _rightMeter.Scrubbed += (sender, fraction) => Scrub(false, fraction);
+
         _leftPrefer.Click += (sender, args) => Choose(ComparisonChoice.Left);
         _rightPrefer.Click += (sender, args) => Choose(ComparisonChoice.Right);
         _same.Click += (sender, args) => Choose(ComparisonChoice.Same);
@@ -263,13 +302,17 @@ internal sealed class LadderView : UserControl
 
         Controls.AddRange(new Control[]
         {
-            _status, _libraryCaption, _libraryMeter, _songCaption, _songMeter,
-            _leftCover, _rightCover, _leftTitle, _rightTitle, _leftDetail, _rightDetail,
-            _leftScore, _rightScore, _leftMeter, _rightMeter, _leftPrefer, _rightPrefer, _same, _skip, _hint,
+            _status, _leftCover, _rightCover, _leftTitle, _rightTitle, _leftDetail, _rightDetail,
+            _leftScore, _rightScore, _leftMeter, _rightMeter, _leftTime, _rightTime, _leftPrefer, _rightPrefer, _same, _skip, _hint,
         });
 
         _session.Changed += OnChanged;
-        Disposed += (sender, args) => _session.Changed -= OnChanged;
+        _session.PlaybackChanged += OnPlayback;
+        Disposed += (sender, args) =>
+        {
+            _session.Changed -= OnChanged;
+            _session.PlaybackChanged -= OnPlayback;
+        };
         RefreshView();
     }
 
@@ -285,10 +328,10 @@ internal sealed class LadderView : UserControl
         _rightDetail.ForeColor = muted;
         _leftScore.ForeColor = text;
         _rightScore.ForeColor = text;
-        _libraryCaption.ForeColor = muted;
-        _songCaption.ForeColor = muted;
+        _leftTime.ForeColor = muted;
+        _rightTime.ForeColor = muted;
         Color track = Blend(background, text, 0.16f);
-        foreach (Meter meter in new[] { _libraryMeter, _songMeter, _leftMeter, _rightMeter })
+        foreach (Meter meter in new[] { _leftMeter, _rightMeter })
         {
             meter.TrackColor = track;
             meter.FillColor = accent;
@@ -364,6 +407,8 @@ internal sealed class LadderView : UserControl
         _rightPrefer.Visible = asking;
         _leftMeter.Visible = asking;
         _rightMeter.Visible = asking;
+        _leftTime.Visible = asking;
+        _rightTime.Visible = asking;
         _same.Visible = asking;
         _skip.Visible = asking;
         _hint.Visible = asking;
@@ -393,32 +438,79 @@ internal sealed class LadderView : UserControl
             _status.Text = "Place a track, or sharpen the pairs that are still close.";
         }
 
-        int libraryCount = _session.LibraryCount;
-        int placedCount = _session.PlacedCount;
-        _libraryCaption.Text = placedCount.ToString(CultureInfo.InvariantCulture)
-            + " of "
-            + libraryCount.ToString(CultureInfo.InvariantCulture)
-            + " placed";
-        _libraryMeter.Fraction = libraryCount == 0 ? 0 : placedCount / (double)libraryCount;
-        double? placement = _session.Controller.PlacementProgress;
-        _songCaption.Visible = placement.HasValue;
-        _songMeter.Visible = placement.HasValue;
-        if (placement.HasValue)
-        {
-            _songMeter.Fraction = placement.Value;
-        }
-
         if (asking)
         {
             IReadOnlyList<RankedTrack> rank = _session.Controller.Rank(DateTime.UtcNow);
-            Fill(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftMeter, prompt.Left, rank);
-            Fill(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightMeter, prompt.Right, rank);
+            Fill(_leftCover, _leftTitle, _leftDetail, _leftScore, prompt.Left, rank);
+            Fill(_rightCover, _rightTitle, _rightDetail, _rightScore, prompt.Right, rank);
+            UpdateClocks();
         }
 
         LayoutStage();
     }
 
-    private void Fill(CoverBox cover, Label title, Label detail, Label score, Meter meter, TrackSnapshot track, IReadOnlyList<RankedTrack> rank)
+    private void OnPlayback(object sender, EventArgs args)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(UpdateClocks));
+            return;
+        }
+
+        UpdateClocks();
+    }
+
+    private void UpdateClocks()
+    {
+        ComparisonPrompt prompt = _session.Controller.Current;
+        if (prompt == null)
+        {
+            return;
+        }
+
+        ShowClock(_leftMeter, _leftTime, prompt.Left.Url);
+        ShowClock(_rightMeter, _rightTime, prompt.Right.Url);
+    }
+
+    private void ShowClock(Meter meter, Label time, string url)
+    {
+        int positionMs;
+        int durationMs;
+        _session.TryPlayback(url, out positionMs, out durationMs);
+        meter.Fraction = durationMs <= 0 ? 0 : positionMs / (double)durationMs;
+        time.Text = durationMs <= 0 ? FormatClock(positionMs) : FormatClock(positionMs) + " / " + FormatClock(durationMs);
+    }
+
+    private static string FormatClock(int milliseconds)
+    {
+        if (milliseconds < 0)
+        {
+            milliseconds = 0;
+        }
+
+        int totalSeconds = milliseconds / 1000;
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return minutes.ToString(CultureInfo.InvariantCulture) + ":" + seconds.ToString("00", CultureInfo.InvariantCulture);
+    }
+
+    private void Scrub(bool left, double fraction)
+    {
+        ComparisonPrompt prompt = _session.Controller.Current;
+        if (prompt == null)
+        {
+            return;
+        }
+
+        _session.RequestSeek(left ? prompt.Left.Url : prompt.Right.Url, fraction);
+    }
+
+    private void Fill(CoverBox cover, Label title, Label detail, Label score, TrackSnapshot track, IReadOnlyList<RankedTrack> rank)
     {
         cover.Art = _session.ArtFor(track.Url);
         cover.Mark = DisplayTitle(track);
@@ -426,21 +518,6 @@ internal sealed class LadderView : UserControl
         title.Text = DisplayTitle(track);
         detail.Text = JoinDetail(track.Artist, track.Album);
         score.Text = ScoreFor(track.Url, rank);
-        meter.Fraction = SettledFor(track.Url, rank);
-        meter.Visible = true;
-    }
-
-    private static double SettledFor(string url, IReadOnlyList<RankedTrack> rank)
-    {
-        foreach (RankedTrack row in rank)
-        {
-            if (string.Equals(row.Track.Url, url, StringComparison.Ordinal))
-            {
-                return RatingText.Settled(row.Effective.Deviation);
-            }
-        }
-
-        return 0;
     }
 
     private static string ScoreFor(string url, IReadOnlyList<RankedTrack> rank)
@@ -473,16 +550,8 @@ internal sealed class LadderView : UserControl
             return;
         }
 
-        _status.SetBounds(pad, 12, width - pad * 2, 24);
-        _libraryCaption.SetBounds(pad, 36, width - pad * 2, 18);
-        _libraryMeter.SetBounds(pad, 56, width - pad * 2, 8);
-        int top = 76;
-        if (_songMeter.Visible)
-        {
-            _songCaption.SetBounds(pad, 70, width - pad * 2, 18);
-            _songMeter.SetBounds(pad, 90, width - pad * 2, 8);
-            top = 110;
-        }
+        _status.SetBounds(pad, 16, width - pad * 2, 28);
+        int top = 52;
 
         int footerTop = height - 36;
 
@@ -492,7 +561,7 @@ internal sealed class LadderView : UserControl
         }
 
         int center = 150;
-        int textBlock = 156;
+        int textBlock = 176;
         int bottom = footerTop - 12;
         int side = Math.Min((width - pad * 2 - center - 48) / 2, bottom - top - textBlock);
         if (side < 96)
@@ -504,8 +573,8 @@ internal sealed class LadderView : UserControl
         int x = Math.Max(pad, (width - group) / 2);
         int y = top + Math.Max(0, (bottom - top - textBlock - side) / 2);
 
-        PlaceSide(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftMeter, _leftPrefer, x, y, side);
-        PlaceSide(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightMeter, _rightPrefer, x + side + center + 48, y, side);
+        PlaceSide(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftMeter, _leftTime, _leftPrefer, x, y, side);
+        PlaceSide(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightMeter, _rightTime, _rightPrefer, x + side + center + 48, y, side);
 
         int midX = x + side + 24;
         _same.SetBounds(midX, y + side / 2 - 20, center, 34);
@@ -513,14 +582,15 @@ internal sealed class LadderView : UserControl
         _hint.SetBounds(pad, footerTop - 28, width - pad * 2, 22);
     }
 
-    private static void PlaceSide(CoverBox cover, Label title, Label detail, Label score, Meter meter, Button prefer, int x, int y, int side)
+    private static void PlaceSide(CoverBox cover, Label title, Label detail, Label score, Meter meter, Label time, Button prefer, int x, int y, int side)
     {
         cover.SetBounds(x, y, side, side);
-        title.SetBounds(x, y + side + 12, side, 28);
-        detail.SetBounds(x, y + side + 40, side, 22);
-        score.SetBounds(x, y + side + 62, side, 22);
-        meter.SetBounds(x, y + side + 88, side, 8);
-        prefer.SetBounds(x, y + side + 104, side, 36);
+        title.SetBounds(x, y + side + 10, side, 28);
+        detail.SetBounds(x, y + side + 38, side, 22);
+        score.SetBounds(x, y + side + 60, side, 22);
+        meter.SetBounds(x, y + side + 86, side, 10);
+        time.SetBounds(x, y + side + 98, side, 18);
+        prefer.SetBounds(x, y + side + 120, side, 36);
     }
 
     private void Play(bool left)
