@@ -33,4 +33,4 @@ While a track is being placed, the song on the left stays put and the one on the
 
 Sharpen mode asks about two tracks whose ratings are close and still uncertain. **About the same** is a real answer. Skip does not record one.
 
-The number on a track looks like `1640 ± 80`. The first figure is the strength. The `±` is how wide that estimate still is. A new track says "not placed" until it has been compared.
+The number on a track looks like `1640 ± 80`. The first figure is the strength. The `±` is how wide that estimate still is. A new track says "not placed" until it has been compared. The bar under a song fills as that width shrinks. The bar at the top is how many library tracks have been placed. While one song is being slotted in, a second bar shows how far that placement has gotten.

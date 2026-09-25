@@ -20,6 +20,7 @@ public sealed class PlaceSession
     private readonly TrackSnapshot[] _edges;
     private readonly HashSet<string> _asked;
     private readonly DateTime _clock;
+    private readonly int _initialOpponents;
 
     private PlaceSession(
         LadderBook book,
@@ -31,6 +32,7 @@ public sealed class PlaceSession
         TrackSnapshot[] edges,
         HashSet<string> asked,
         DateTime clock,
+        int initialOpponents,
         bool needsAnotherTrack)
     {
         Book = book;
@@ -42,7 +44,57 @@ public sealed class PlaceSession
         _edges = edges;
         _asked = asked;
         _clock = clock;
+        _initialOpponents = initialOpponents;
         NeedsAnotherTrack = needsAnotherTrack;
+    }
+
+    /// <summary>Share of the expected questions for this placement that already have an answer. 0 is the first question, 1 is finished.</summary>
+    public double Progress
+    {
+        get
+        {
+            int expected = ExpectedQuestions(_initialOpponents);
+            if (expected <= 0)
+            {
+                return NeedsAnotherTrack ? 0 : 1;
+            }
+
+            double value = _asked.Count / (double)expected;
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 1)
+            {
+                return 1;
+            }
+
+            return value;
+        }
+    }
+
+    private static int ExpectedQuestions(int opponents)
+    {
+        if (opponents <= 0)
+        {
+            return 0;
+        }
+
+        if (opponents == 1)
+        {
+            return 1;
+        }
+
+        int steps = 0;
+        int value = opponents - 1;
+        while (value > 0)
+        {
+            value >>= 1;
+            steps++;
+        }
+
+        return steps + 2;
     }
 
     public LadderBook Book { get; }
@@ -115,6 +167,7 @@ public sealed class PlaceSession
                 edges: Array.Empty<TrackSnapshot>(),
                 asked,
                 clock,
+                0,
                 needsAnotherTrack: true);
         }
 
@@ -128,6 +181,7 @@ public sealed class PlaceSession
             edges: Array.Empty<TrackSnapshot>(),
             asked,
             clock,
+            opponents.Count,
             needsAnotherTrack: false);
     }
 
@@ -169,6 +223,7 @@ public sealed class PlaceSession
                 edges: WithoutFirst(_edges),
                 asked,
                 clock,
+                _initialOpponents,
                 needsAnotherTrack: false);
         }
 
@@ -199,6 +254,7 @@ public sealed class PlaceSession
             edges: Array.Empty<TrackSnapshot>(),
             asked,
             clock,
+            _initialOpponents,
             needsAnotherTrack: false);
     }
 
@@ -221,6 +277,7 @@ public sealed class PlaceSession
                 edges: WithoutFirst(_edges),
                 _asked,
                 _clock,
+                _initialOpponents,
                 needsAnotherTrack: false);
         }
 
@@ -245,6 +302,7 @@ public sealed class PlaceSession
             edges: Array.Empty<TrackSnapshot>(),
             _asked,
             _clock,
+            _initialOpponents,
             needsAnotherTrack: false);
     }
 
@@ -279,6 +337,7 @@ public sealed class PlaceSession
             edges,
             asked,
             clock,
+            _initialOpponents,
             needsAnotherTrack: false);
     }
 

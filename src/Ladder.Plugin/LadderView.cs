@@ -3,6 +3,65 @@ using Ladder;
 
 namespace MusicBeePlugin;
 
+internal sealed class Meter : Control
+{
+    private double _fraction;
+
+    public Meter()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        TabStop = false;
+        Height = 8;
+        TrackColor = Color.FromArgb(48, 48, 48);
+        FillColor = Color.FromArgb(230, 230, 230);
+    }
+
+    public double Fraction
+    {
+        get { return _fraction; }
+        set
+        {
+            if (value < 0)
+            {
+                value = 0;
+            }
+
+            if (value > 1)
+            {
+                value = 1;
+            }
+
+            _fraction = value;
+            Invalidate();
+        }
+    }
+
+    public Color TrackColor { get; set; }
+
+    public Color FillColor { get; set; }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.Clear(BackColor);
+        Rectangle track = new Rectangle(0, 0, Math.Max(0, Width - 1), Math.Max(0, Height - 1));
+        using (Brush trackBrush = new SolidBrush(TrackColor))
+        {
+            e.Graphics.FillRectangle(trackBrush, track);
+        }
+
+        int fillWidth = (int)Math.Round(track.Width * _fraction);
+        if (fillWidth <= 0)
+        {
+            return;
+        }
+
+        using (Brush fillBrush = new SolidBrush(FillColor))
+        {
+            e.Graphics.FillRectangle(fillBrush, new Rectangle(track.X, track.Y, fillWidth, track.Height));
+        }
+    }
+}
+
 internal sealed class CoverBox : Control
 {
     private Image _art;
@@ -133,6 +192,12 @@ internal sealed class LadderView : UserControl
 {
     private readonly LadderSession _session;
     private readonly Label _status;
+    private readonly Label _libraryCaption;
+    private readonly Meter _libraryMeter;
+    private readonly Label _songCaption;
+    private readonly Meter _songMeter;
+    private readonly Meter _leftMeter;
+    private readonly Meter _rightMeter;
     private readonly CoverBox _leftCover;
     private readonly CoverBox _rightCover;
     private readonly Label _leftTitle;
@@ -163,6 +228,14 @@ internal sealed class LadderView : UserControl
         Font = new Font("Segoe UI", 10f);
 
         _status = MakeLabel(11f, FontStyle.Regular, true);
+        _libraryCaption = MakeLabel(9f, FontStyle.Regular, true);
+        _libraryCaption.Text = "0 of 0 placed";
+        _songCaption = MakeLabel(9f, FontStyle.Regular, true);
+        _songCaption.Text = "Placing this song";
+        _libraryMeter = new Meter();
+        _songMeter = new Meter();
+        _leftMeter = new Meter();
+        _rightMeter = new Meter();
         _hint = MakeLabel(9f, FontStyle.Regular, true);
         _hint.Text = "Click a cover, or press the left and right arrows, to switch which song is playing.";
 
@@ -190,8 +263,9 @@ internal sealed class LadderView : UserControl
 
         Controls.AddRange(new Control[]
         {
-            _status, _leftCover, _rightCover, _leftTitle, _rightTitle, _leftDetail, _rightDetail,
-            _leftScore, _rightScore, _leftPrefer, _rightPrefer, _same, _skip, _hint,
+            _status, _libraryCaption, _libraryMeter, _songCaption, _songMeter,
+            _leftCover, _rightCover, _leftTitle, _rightTitle, _leftDetail, _rightDetail,
+            _leftScore, _rightScore, _leftMeter, _rightMeter, _leftPrefer, _rightPrefer, _same, _skip, _hint,
         });
 
         _session.Changed += OnChanged;
@@ -211,6 +285,15 @@ internal sealed class LadderView : UserControl
         _rightDetail.ForeColor = muted;
         _leftScore.ForeColor = text;
         _rightScore.ForeColor = text;
+        _libraryCaption.ForeColor = muted;
+        _songCaption.ForeColor = muted;
+        Color track = Blend(background, text, 0.16f);
+        foreach (Meter meter in new[] { _libraryMeter, _songMeter, _leftMeter, _rightMeter })
+        {
+            meter.TrackColor = track;
+            meter.FillColor = accent;
+            meter.BackColor = background;
+        }
         _leftCover.BackColor = background;
         _rightCover.BackColor = background;
         _leftCover.FrameColor = accent;
@@ -279,6 +362,8 @@ internal sealed class LadderView : UserControl
         _rightScore.Visible = asking;
         _leftPrefer.Visible = asking;
         _rightPrefer.Visible = asking;
+        _leftMeter.Visible = asking;
+        _rightMeter.Visible = asking;
         _same.Visible = asking;
         _skip.Visible = asking;
         _hint.Visible = asking;
@@ -308,17 +393,32 @@ internal sealed class LadderView : UserControl
             _status.Text = "Place a track, or sharpen the pairs that are still close.";
         }
 
+        int libraryCount = _session.LibraryCount;
+        int placedCount = _session.PlacedCount;
+        _libraryCaption.Text = placedCount.ToString(CultureInfo.InvariantCulture)
+            + " of "
+            + libraryCount.ToString(CultureInfo.InvariantCulture)
+            + " placed";
+        _libraryMeter.Fraction = libraryCount == 0 ? 0 : placedCount / (double)libraryCount;
+        double? placement = _session.Controller.PlacementProgress;
+        _songCaption.Visible = placement.HasValue;
+        _songMeter.Visible = placement.HasValue;
+        if (placement.HasValue)
+        {
+            _songMeter.Fraction = placement.Value;
+        }
+
         if (asking)
         {
             IReadOnlyList<RankedTrack> rank = _session.Controller.Rank(DateTime.UtcNow);
-            Fill(_leftCover, _leftTitle, _leftDetail, _leftScore, prompt.Left, rank);
-            Fill(_rightCover, _rightTitle, _rightDetail, _rightScore, prompt.Right, rank);
+            Fill(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftMeter, prompt.Left, rank);
+            Fill(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightMeter, prompt.Right, rank);
         }
 
         LayoutStage();
     }
 
-    private void Fill(CoverBox cover, Label title, Label detail, Label score, TrackSnapshot track, IReadOnlyList<RankedTrack> rank)
+    private void Fill(CoverBox cover, Label title, Label detail, Label score, Meter meter, TrackSnapshot track, IReadOnlyList<RankedTrack> rank)
     {
         cover.Art = _session.ArtFor(track.Url);
         cover.Mark = DisplayTitle(track);
@@ -326,6 +426,21 @@ internal sealed class LadderView : UserControl
         title.Text = DisplayTitle(track);
         detail.Text = JoinDetail(track.Artist, track.Album);
         score.Text = ScoreFor(track.Url, rank);
+        meter.Fraction = SettledFor(track.Url, rank);
+        meter.Visible = true;
+    }
+
+    private static double SettledFor(string url, IReadOnlyList<RankedTrack> rank)
+    {
+        foreach (RankedTrack row in rank)
+        {
+            if (string.Equals(row.Track.Url, url, StringComparison.Ordinal))
+            {
+                return RatingText.Settled(row.Effective.Deviation);
+            }
+        }
+
+        return 0;
     }
 
     private static string ScoreFor(string url, IReadOnlyList<RankedTrack> rank)
@@ -358,7 +473,16 @@ internal sealed class LadderView : UserControl
             return;
         }
 
-        _status.SetBounds(pad, 16, width - pad * 2, 28);
+        _status.SetBounds(pad, 12, width - pad * 2, 24);
+        _libraryCaption.SetBounds(pad, 36, width - pad * 2, 18);
+        _libraryMeter.SetBounds(pad, 56, width - pad * 2, 8);
+        int top = 76;
+        if (_songMeter.Visible)
+        {
+            _songCaption.SetBounds(pad, 70, width - pad * 2, 18);
+            _songMeter.SetBounds(pad, 90, width - pad * 2, 8);
+            top = 110;
+        }
 
         int footerTop = height - 36;
 
@@ -368,8 +492,7 @@ internal sealed class LadderView : UserControl
         }
 
         int center = 150;
-        int textBlock = 132;
-        int top = 52;
+        int textBlock = 156;
         int bottom = footerTop - 12;
         int side = Math.Min((width - pad * 2 - center - 48) / 2, bottom - top - textBlock);
         if (side < 96)
@@ -381,8 +504,8 @@ internal sealed class LadderView : UserControl
         int x = Math.Max(pad, (width - group) / 2);
         int y = top + Math.Max(0, (bottom - top - textBlock - side) / 2);
 
-        PlaceSide(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftPrefer, x, y, side);
-        PlaceSide(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightPrefer, x + side + center + 48, y, side);
+        PlaceSide(_leftCover, _leftTitle, _leftDetail, _leftScore, _leftMeter, _leftPrefer, x, y, side);
+        PlaceSide(_rightCover, _rightTitle, _rightDetail, _rightScore, _rightMeter, _rightPrefer, x + side + center + 48, y, side);
 
         int midX = x + side + 24;
         _same.SetBounds(midX, y + side / 2 - 20, center, 34);
@@ -390,13 +513,14 @@ internal sealed class LadderView : UserControl
         _hint.SetBounds(pad, footerTop - 28, width - pad * 2, 22);
     }
 
-    private static void PlaceSide(CoverBox cover, Label title, Label detail, Label score, Button prefer, int x, int y, int side)
+    private static void PlaceSide(CoverBox cover, Label title, Label detail, Label score, Meter meter, Button prefer, int x, int y, int side)
     {
         cover.SetBounds(x, y, side, side);
         title.SetBounds(x, y + side + 12, side, 28);
         detail.SetBounds(x, y + side + 40, side, 22);
         score.SetBounds(x, y + side + 62, side, 22);
-        prefer.SetBounds(x, y + side + 90, side, 36);
+        meter.SetBounds(x, y + side + 88, side, 8);
+        prefer.SetBounds(x, y + side + 104, side, 36);
     }
 
     private void Play(bool left)

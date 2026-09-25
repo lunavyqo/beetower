@@ -50,6 +50,11 @@ public sealed class ComparisonController
 
     public bool NeedsAnotherTrack => _place is not null && _place.NeedsAnotherTrack && _place.IsFinished;
 
+    /// <summary>How far the current placement is, or null when the question is not placing one track.</summary>
+    public double? PlacementProgress => _place is not null && !_place.IsFinished && !_place.NeedsAnotherTrack
+        ? _place.Progress
+        : (double?)null;
+
     public void Place(TrackSnapshot focus, DateTime utc)
     {
         if (focus is null)

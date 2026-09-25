@@ -8,6 +8,29 @@ public static class RatingText
     public const string ClearOfNext = "clear of the next track";
     public const string OverlappingNext = "overlapping the next track";
 
+    /// <summary>0 when a rating is as wide as a new track, 1 when it has reached the deviation floor.</summary>
+    public static double Settled(double deviation)
+    {
+        double span = Glicko2.DeviationCap - Glicko2.DeviationFloor;
+        if (span <= 0)
+        {
+            return 1;
+        }
+
+        double value = (Glicko2.DeviationCap - deviation) / span;
+        if (value < 0)
+        {
+            return 0;
+        }
+
+        if (value > 1)
+        {
+            return 1;
+        }
+
+        return value;
+    }
+
     public static string Format(Strength strength)
     {
         if (strength is null)

@@ -190,6 +190,11 @@ public partial class Plugin
 
             _library = urls.ToArray();
         }
+
+        if (_session != null)
+        {
+            _session.SetLibrary(_library);
+        }
     }
 
     private void AddMenus()

@@ -5,6 +5,21 @@ public sealed class ComparisonControllerTests
     private static readonly DateTime T0 = new(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public void PlacementProgress_StartsEmptyAndAdvancesAfterAnAnswer()
+    {
+        LadderBook seed = LadderBook.Empty
+            .Apply(Match("A", "B", DuelOutcome.LeftWins))
+            .Apply(Match("B", "C", DuelOutcome.LeftWins, 1))
+            .Apply(Match("A", "C", DuelOutcome.LeftWins, 2));
+        var controller = new ComparisonController(seed);
+        controller.Place(Snap("n"), T0);
+
+        Assert.Equal(0, controller.PlacementProgress.GetValueOrDefault(-1));
+        controller.Choose(ComparisonChoice.Left, T0.AddMinutes(3));
+        Assert.True(controller.PlacementProgress.GetValueOrDefault(0) > 0);
+    }
+
+    [Fact]
     public void Place_OnAnEmptyLadder_AsksForASecondTrack()
     {
         var controller = new ComparisonController(LadderBook.Empty);
@@ -13,6 +28,7 @@ public sealed class ComparisonControllerTests
 
         Assert.True(controller.NeedsAnotherTrack);
         Assert.Null(controller.Current);
+        Assert.Null(controller.PlacementProgress);
         Assert.Empty(controller.Book.Duels);
     }
 

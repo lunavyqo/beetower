@@ -32,6 +32,14 @@ public sealed class RatingTextTests
     }
 
     [Fact]
+    public void Settled_IsEmptyForANewTrackAndFullAtTheFloor()
+    {
+        Assert.Equal(0, RatingText.Settled(Glicko2.DeviationCap));
+        Assert.Equal(1, RatingText.Settled(Glicko2.DeviationFloor));
+        Assert.Equal(0.5, RatingText.Settled(190));
+    }
+
+    [Fact]
     public void NotPlaced_IsTheLabelForATrackWithNoAnswers()
     {
         Assert.Equal("not placed", RatingText.NotPlaced);

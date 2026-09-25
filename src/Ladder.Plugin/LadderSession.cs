@@ -10,6 +10,7 @@ namespace MusicBeePlugin;
 internal sealed class LadderSession
 {
     private readonly string _path;
+    private string[] _libraryUrls = new string[0];
     private bool _canSave;
     private bool _dirty;
 
@@ -43,6 +44,28 @@ internal sealed class LadderSession
     public string Note { get; private set; }
 
     public string PlayingUrl { get; private set; }
+
+    public int LibraryCount => _libraryUrls.Length;
+
+    public int PlacedCount { get; private set; }
+
+    public void SetLibrary(IReadOnlyList<string> urls)
+    {
+        if (urls == null || urls.Count == 0)
+        {
+            _libraryUrls = new string[0];
+        }
+        else
+        {
+            _libraryUrls = new string[urls.Count];
+            for (int i = 0; i < urls.Count; i++)
+            {
+                _libraryUrls[i] = urls[i];
+            }
+        }
+
+        Recount();
+    }
 
     public Func<string, Image> LoadArt { get; set; }
 
@@ -205,8 +228,24 @@ internal sealed class LadderSession
             _dirty = true;
         }
 
+        Recount();
         Note = null;
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Recount()
+    {
+        int placed = 0;
+        for (int i = 0; i < _libraryUrls.Length; i++)
+        {
+            TrackState state = Controller.Book.Find(_libraryUrls[i]);
+            if (state != null && state.ComparisonCount > 0)
+            {
+                placed++;
+            }
+        }
+
+        PlacedCount = placed;
     }
 
     private void AskIfIdle()
