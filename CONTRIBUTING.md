@@ -20,7 +20,7 @@ Engine changes ship with tests. From the repository root, with the .NET 8 SDK:
 dotnet test
 ```
 
-`dotnet test` runs the tests on .NET 8. `dotnet build` also compiles the engine for .NET Framework 4.8, which is what MusicBee loads.
+`dotnet test` runs the tests on .NET 8. `dotnet build` also compiles the engine and the MusicBee plugin for .NET Framework 4.8.
 
 ## Layout
 

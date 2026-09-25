@@ -4,16 +4,29 @@ Ladder is a plugin for [MusicBee](https://www.getmusicbee.com/) that ranks track
 
 A score such as 8.7 only means something if you can already remember where hundreds of other songs sit. Ladder never asks for that number. It asks for one comparison at a time, updates a strength estimate, and shows how sure that estimate is.
 
-The ranking method is specified in [docs/rating-model.md](docs/rating-model.md).
+Two tracks are enough to start. The rules are in [docs/rating-model.md](docs/rating-model.md). The saved file is in [docs/ladder-file.md](docs/ladder-file.md).
 
-## Status
+## Install
 
-The engine can place a track, move on to sharpening, and save that history as a version 1 JSON file. The MusicBee panel is not built yet. See [docs/ladder-file.md](docs/ladder-file.md).
+MusicBee 3.5 or newer, on .NET Framework 4.8. Building needs the .NET 8 SDK.
 
-## Requirements
+```text
+dotnet build -c Release
+```
 
-- Windows
-- MusicBee 3.5 or newer, running on .NET Framework 4.8
-- .NET 8 SDK, to build
+Copy these two files into MusicBee's Plugins folder (for a normal install, `C:\Program Files (x86)\MusicBee\Plugins`):
 
-Install steps will be added with the plugin project.
+- `src/Ladder.Plugin/bin/Release/net48/mb_Ladder.dll`
+- `src/Ladder.Plugin/bin/Release/net48/Ladder.Engine.dll`
+
+Restart MusicBee, then enable Ladder under Preferences, Plugins. The panel is named Ladder. Add it from the panel layout, or use Tools, "Ladder: Place the playing track". A right-click on a track in the main list also offers "Ladder: Place selected track".
+
+Answers are stored in `ladder\ladder.json` under MusicBee's persistent storage folder. Removing the plugin leaves that file where it is.
+
+## Asking
+
+Place mode keeps the track you chose on top and compares it with one track from the middle of the current ladder, then half of what remains, until the slot is narrow. It then asks about the songs that ended up directly beside it.
+
+Sharpen mode asks about two tracks whose ratings are close and still uncertain. "About the same" is a real answer. Skip does not record one.
+
+The number on a track looks like `1640 ± 80`. The first figure is the strength. The `±` is how wide that estimate still is. A new track says "not placed" until it has been compared.

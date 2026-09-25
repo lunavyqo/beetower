@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>12</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MusicBeePlugin</RootNamespace>
+    <AssemblyName>mb_Ladder</AssemblyName>
+    <Version>0.1.0</Version>
+    <AssemblyTitle>Ladder</AssemblyTitle>
+    <Description>Rank tracks by asking which of two songs you prefer.</Description>
+    <Company>MrBebra</Company>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <ProjectReference Include="..\Ladder.Engine\Ladder.Engine.csproj" />
+  </ItemGroup>
+</Project>

@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ladder.Engine", "src\Ladder
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ladder.Engine.Tests", "src\Ladder.Engine.Tests\Ladder.Engine.Tests.csproj", "{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ladder.Plugin", "src\Ladder.Plugin\Ladder.Plugin.csproj", "{8D1B2DEF-1B6A-4E20-8DBB-13319149E9CF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +28,14 @@ Global
 		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D1B2DEF-1B6A-4E20-8DBB-13319149E9CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D1B2DEF-1B6A-4E20-8DBB-13319149E9CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D1B2DEF-1B6A-4E20-8DBB-13319149E9CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D1B2DEF-1B6A-4E20-8DBB-13319149E9CF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{90007285-9E57-474C-A9BD-DDA734A79219} = {C1E4434D-F6BE-455F-AF9C-8997F1E227AB}
 		{7FD03B89-D9D5-460E-B6C7-A0E3D5D5AAB3} = {C1E4434D-F6BE-455F-AF9C-8997F1E227AB}
+		{8D1B2DEF-1B6A-4E20-8DBB-13319149E9CF} = {C1E4434D-F6BE-455F-AF9C-8997F1E227AB}
 	EndGlobalSection
 EndGlobal
