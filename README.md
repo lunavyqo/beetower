@@ -19,17 +19,17 @@ Copy these two files into MusicBee's Plugins folder (for a normal install, `C:\P
 - `src/Ladder.Plugin/bin/Release/net48/mb_Ladder.dll`
 - `src/Ladder.Plugin/bin/Release/net48/Ladder.Engine.dll`
 
-Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **View → Ladder**. That window fills the player: two songs side by side, and the left and right arrow keys switch which one is playing.
+Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **Tools → Ladder**. The window fills the screen with the next two songs from the library. The left and right arrow keys switch which one is playing. **Prefer this** records the choice, and the next pair appears on its own.
 
-To keep it as its own tab, click the **+** on the tab bar, open **View → Arrange Panels**, and drag **Ladder** into the main panel of that tab. Leave the other elements of that tab empty.
+MusicBee does not let a plugin add a tab beside Music or Playlists. Tools → Ladder is the way in.
 
 Answers are stored in `ladder\ladder.json` under MusicBee's persistent storage folder. Removing the plugin leaves that file where it is.
 
 ## Asking
 
-The two covers take the screen. Click a cover, or press the left and right arrows, to play that song. **Prefer this** under a cover is the rating. Listening and choosing are separate, so you can flip between the pair before you decide.
+The two covers take the screen. Ladder picks them from the library. Click a cover, or press the left and right arrows, to play that song. **Prefer this** under a cover is the rating, and the next pair follows immediately.
 
-Place mode keeps the track you chose on the left and compares it with one track from the middle of the current ladder, then half of what remains, until the slot is narrow. It then asks about the songs that ended up directly beside it.
+While a track is being placed, the song on the left stays put and the one on the right is the next comparison from the middle of the ladder, then half of what remains.
 
 Sharpen mode asks about two tracks whose ratings are close and still uncertain. **About the same** is a real answer. Skip does not record one.
 

@@ -32,6 +32,8 @@ internal sealed class LadderSession
 
     public event EventHandler Changed;
 
+    public event EventHandler NeedsQuestion;
+
     public event EventHandler<string> PlayRequested;
 
     public ComparisonController Controller { get; private set; }
@@ -129,6 +131,18 @@ internal sealed class LadderSession
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    public void ShowPair(TrackSnapshot left, TrackSnapshot right)
+    {
+        if (!GuardWritable())
+        {
+            return;
+        }
+
+        Controller.ShowPair(left, right);
+        Note = null;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public void Choose(ComparisonChoice choice)
     {
         if (!GuardWritable())
@@ -139,6 +153,7 @@ internal sealed class LadderSession
         LadderBook before = Controller.Book;
         Controller.Choose(choice, DateTime.UtcNow);
         After(before);
+        AskIfIdle();
     }
 
     public void Skip()
@@ -151,6 +166,7 @@ internal sealed class LadderSession
         LadderBook before = Controller.Book;
         Controller.Skip(DateTime.UtcNow);
         After(before);
+        AskIfIdle();
     }
 
     public void Report(string note)
@@ -191,5 +207,13 @@ internal sealed class LadderSession
 
         Note = null;
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void AskIfIdle()
+    {
+        if (Controller.Current == null)
+        {
+            NeedsQuestion?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

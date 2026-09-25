@@ -31,9 +31,21 @@ public sealed class ComparisonControllerTests
             Assert.True(guard < 12);
         }
 
-        Assert.NotNull(controller.Current);
-        Assert.Equal(ComparisonMode.Sharpen, controller.Current!.Mode);
+        Assert.Null(controller.Current);
         Assert.True(controller.Book.Duels.Count > seed.Duels.Count);
+    }
+
+    [Fact]
+    public void ShowPair_RecordsTheChoiceAndThenWaits()
+    {
+        var controller = new ComparisonController(LadderBook.Empty);
+        controller.ShowPair(Snap("a"), Snap("b"));
+
+        controller.Choose(ComparisonChoice.Right, T0);
+
+        Assert.Null(controller.Current);
+        Assert.Equal("b", controller.Book.Duels[0].Right.Url);
+        Assert.Equal(DuelOutcome.RightWins, controller.Book.Duels[0].Outcome);
     }
 
     [Fact]

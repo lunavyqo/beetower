@@ -145,8 +145,6 @@ internal sealed class LadderView : UserControl
     private readonly Button _rightPrefer;
     private readonly Button _same;
     private readonly Button _skip;
-    private readonly Button _placePlaying;
-    private readonly Button _sharpen;
     private readonly Label _hint;
 
     public LadderView(LadderSession session)
@@ -184,20 +182,16 @@ internal sealed class LadderView : UserControl
         _rightPrefer = MakeButton("Prefer this");
         _same = MakeButton("About the same");
         _skip = MakeButton("Skip");
-        _placePlaying = MakeButton("Place playing");
-        _sharpen = MakeButton("Sharpen");
 
         _leftPrefer.Click += (sender, args) => Choose(ComparisonChoice.Left);
         _rightPrefer.Click += (sender, args) => Choose(ComparisonChoice.Right);
         _same.Click += (sender, args) => Choose(ComparisonChoice.Same);
         _skip.Click += (sender, args) => Run(delegate { _session.Skip(); });
-        _placePlaying.Click += (sender, args) => _session.PlacePlayingRequested();
-        _sharpen.Click += (sender, args) => Run(delegate { _session.Sharpen(); });
 
         Controls.AddRange(new Control[]
         {
             _status, _leftCover, _rightCover, _leftTitle, _rightTitle, _leftDetail, _rightDetail,
-            _leftScore, _rightScore, _leftPrefer, _rightPrefer, _same, _skip, _placePlaying, _sharpen, _hint,
+            _leftScore, _rightScore, _leftPrefer, _rightPrefer, _same, _skip, _hint,
         });
 
         _session.Changed += OnChanged;
@@ -222,7 +216,7 @@ internal sealed class LadderView : UserControl
         _leftCover.FrameColor = accent;
         _rightCover.FrameColor = accent;
         Color buttonBack = Blend(background, text, 0.12f);
-        foreach (Button button in new[] { _leftPrefer, _rightPrefer, _same, _skip, _placePlaying, _sharpen })
+        foreach (Button button in new[] { _leftPrefer, _rightPrefer, _same, _skip })
         {
             button.BackColor = buttonBack;
             button.ForeColor = text;
@@ -299,7 +293,7 @@ internal sealed class LadderView : UserControl
         }
         else if (_session.Controller.NeedsAnotherTrack)
         {
-            _status.Text = "Place one more track. Ladder needs two songs before it can ask.";
+            _status.Text = "Ladder needs at least two tracks in the library.";
         }
         else if (prompt != null && prompt.Mode == ComparisonMode.Place)
         {
@@ -366,9 +360,7 @@ internal sealed class LadderView : UserControl
 
         _status.SetBounds(pad, 16, width - pad * 2, 28);
 
-        int footerTop = height - 52;
-        _placePlaying.SetBounds(pad, footerTop, 140, 32);
-        _sharpen.SetBounds(pad + 148, footerTop, 110, 32);
+        int footerTop = height - 36;
 
         if (!_leftCover.Visible)
         {

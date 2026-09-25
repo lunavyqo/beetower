@@ -10,6 +10,9 @@ public partial class Plugin
     private LadderSession _session;
     private LadderView _panelView;
     private Form _window;
+    private string[] _library = new string[0];
+    private bool _libraryLoaded;
+    private bool _fillingQuestion;
     private bool _menusAdded;
 
     static Plugin()
@@ -80,6 +83,7 @@ public partial class Plugin
     public int OnDockablePanelCreated(Control panel)
     {
         EnsureSession();
+        EnsureQuestion();
         _panelView = CreateView();
         panel.Controls.Add(_panelView);
         return -1;
@@ -97,8 +101,95 @@ public partial class Plugin
         _session = new LadderSession(path);
         _session.PlaceUrlRequested += PlacePlaying;
         _session.PlayRequested += OnPlayRequested;
+        _session.NeedsQuestion += (sender, args) => EnsureQuestion();
         _session.LoadArt = LoadArt;
         _session.SetPlaying(PlayingUrl());
+    }
+
+    private void EnsureQuestion()
+    {
+        if (_session == null || _fillingQuestion || _session.Controller.Current != null)
+        {
+            return;
+        }
+
+        _fillingQuestion = true;
+        try
+        {
+            EnsureLibrary();
+            NextComparisonPlan plan = NextComparison.Plan(
+                _session.Controller.Book,
+                _library,
+                PlayingUrl(),
+                _session.Controller.SkippedPairKeys);
+            switch (plan.Kind)
+            {
+                case NextComparisonKind.Pair:
+                    _session.ShowPair(SnapshotOf(plan.LeftUrl), SnapshotOf(plan.RightUrl));
+                    PlayIfDifferent(plan.LeftUrl);
+                    break;
+                case NextComparisonKind.Place:
+                    _session.Place(SnapshotOf(plan.LeftUrl));
+                    PlayCurrentLeft();
+                    break;
+                case NextComparisonKind.Sharpen:
+                    _session.Sharpen();
+                    PlayCurrentLeft();
+                    break;
+                default:
+                    _session.Report("Ladder needs at least two tracks in the library.");
+                    break;
+            }
+        }
+        finally
+        {
+            _fillingQuestion = false;
+        }
+    }
+
+    private void PlayCurrentLeft()
+    {
+        ComparisonPrompt prompt = _session.Controller.Current;
+        if (prompt != null)
+        {
+            PlayIfDifferent(prompt.Left.Url);
+        }
+    }
+
+    private void PlayIfDifferent(string url)
+    {
+        if (string.IsNullOrEmpty(url) || string.Equals(PlayingUrl(), url, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _api.NowPlayingList_PlayNow(url);
+        _session.SetPlaying(url);
+    }
+
+    private void EnsureLibrary()
+    {
+        if (_libraryLoaded)
+        {
+            return;
+        }
+
+        _libraryLoaded = true;
+        string[] files;
+        if (_api.Library_QueryFilesEx("domain=Library", out files) && files != null)
+        {
+            var urls = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < files.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(files[i]) && seen.Add(files[i]))
+                {
+                    urls.Add(files[i]);
+                }
+            }
+
+            _library = urls.ToArray();
+        }
     }
 
     private void AddMenus()
@@ -109,32 +200,15 @@ public partial class Plugin
         }
 
         _menusAdded = true;
-        _api.MB_AddMenuItem("context.Main/Ladder: Place selected track", null, PlaceSelected);
-        _api.MB_AddMenuItem("context.Playlist/Ladder: Place selected track", null, PlaceSelected);
-        _api.MB_AddMenuItem("context.NowPlayingList/Ladder: Place this track", null, PlaceSelected);
         _api.MB_AddMenuItem("mnuView/Ladder", null, OpenLadder);
-        _api.MB_AddMenuItem("mnuTools/Ladder: Place the playing track", "Tools: Place the playing track", PlacePlaying);
-        _api.MB_RegisterCommand("Ladder: Place the playing track", PlacePlaying);
+        _api.MB_AddMenuItem("mnuTools/Ladder", "Tools: Ladder", OpenLadder);
+        _api.MB_RegisterCommand("Ladder: Open", OpenLadder);
     }
 
     private void OpenLadder(object sender, EventArgs args)
     {
         EnsureSession();
-        Reveal();
-    }
-
-    private void PlaceSelected(object sender, EventArgs args)
-    {
-        EnsureSession();
-        string url = SelectedUrl();
-        if (string.IsNullOrEmpty(url))
-        {
-            _session.Report("Select a track, then place it.");
-            Reveal();
-            return;
-        }
-
-        _session.Place(SnapshotOf(url));
+        EnsureQuestion();
         Reveal();
     }
 
@@ -234,25 +308,6 @@ public partial class Plugin
         {
             return null;
         }
-    }
-
-    private string SelectedUrl()
-    {
-        string[] files;
-        if (!_api.Library_QueryFilesEx("domain=SelectedFiles", out files) || files == null)
-        {
-            return null;
-        }
-
-        for (int i = 0; i < files.Length; i++)
-        {
-            if (!string.IsNullOrEmpty(files[i]))
-            {
-                return files[i];
-            }
-        }
-
-        return null;
     }
 
     private string PlayingUrl()
@@ -364,15 +419,21 @@ public partial class Plugin
 
     private void FitWindowToPlayer()
     {
-        Rectangle area = _api.MB_GetPanelBounds(PluginPanelDock.ApplicationWindow);
-        if (area.Width < 640 || area.Height < 420)
+        Rectangle work = Screen.PrimaryScreen.WorkingArea;
+        int width = work.Width * 9 / 10;
+        int height = work.Height * 9 / 10;
+        if (width < 760)
         {
-            _window.WindowState = FormWindowState.Maximized;
-            return;
+            width = Math.Min(760, work.Width);
+        }
+
+        if (height < 520)
+        {
+            height = Math.Min(520, work.Height);
         }
 
         _window.WindowState = FormWindowState.Normal;
-        _window.Bounds = area;
+        _window.Bounds = new Rectangle(work.X + (work.Width - width) / 2, work.Y + (work.Height - height) / 2, width, height);
     }
 
     private void Save()

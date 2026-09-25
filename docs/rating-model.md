@@ -92,6 +92,8 @@ The expected score `E` is also the chance that the player beats that opponent. P
 
 ## Place mode
 
+The MusicBee screen chooses the songs. A listener never picks the pair. With an empty ladder the first question is the playing track against another library track. After that, each unrated library track is placed by binary search, and once every library track has an answer the screen switches to sharpening.
+
 Place mode inserts one focus track into the ladder with as few questions as a binary search needs. The opponents are the other tracks that already have at least one comparison, sorted from weakest rating to strongest, frozen at the moment the session starts. Later answers update strengths immediately, but they do not reshuffle the list the search is walking, so the questions keep halving the same range.
 
 Let the range be the half-open index interval `[low, high)`.

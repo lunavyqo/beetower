@@ -15,8 +15,10 @@ public enum ComparisonChoice
 public sealed class ComparisonController
 {
     private readonly HashSet<string> _skippedSharpen = new HashSet<string>(StringComparer.Ordinal);
+    private readonly HashSet<string> _skippedPairs = new HashSet<string>(StringComparer.Ordinal);
     private LadderBook _book;
     private PlaceSession? _place;
+    private ComparisonPrompt? _shown;
     private ComparisonPrompt? _sharpen;
 
     public ComparisonController(LadderBook book)
@@ -26,7 +28,25 @@ public sealed class ComparisonController
 
     public LadderBook Book => _book;
 
-    public ComparisonPrompt? Current => _place is null || _place.IsFinished ? _sharpen : _place.Current;
+    public ComparisonPrompt? Current
+    {
+        get
+        {
+            if (_place is not null && !_place.IsFinished)
+            {
+                return _place.Current;
+            }
+
+            if (_shown is not null)
+            {
+                return _shown;
+            }
+
+            return _sharpen;
+        }
+    }
+
+    public IReadOnlyCollection<string> SkippedPairKeys => _skippedPairs;
 
     public bool NeedsAnotherTrack => _place is not null && _place.NeedsAnotherTrack && _place.IsFinished;
 
@@ -39,7 +59,25 @@ public sealed class ComparisonController
 
         _skippedSharpen.Clear();
         _sharpen = null;
+        _shown = null;
         _place = PlaceSession.Start(_book, focus, utc);
+    }
+
+    public void ShowPair(TrackSnapshot left, TrackSnapshot right)
+    {
+        if (left is null)
+        {
+            throw new ArgumentNullException(nameof(left));
+        }
+
+        if (right is null)
+        {
+            throw new ArgumentNullException(nameof(right));
+        }
+
+        _place = null;
+        _sharpen = null;
+        _shown = new ComparisonPrompt(left, right, ComparisonMode.Place, left.Url);
     }
 
     public void Sharpen(DateTime utc)
@@ -50,6 +88,7 @@ public sealed class ComparisonController
         }
 
         _place = null;
+        _shown = null;
         _sharpen = SharpenPicker.Choose(_book, utc, _skippedSharpen);
     }
 
@@ -64,12 +103,18 @@ public sealed class ComparisonController
         {
             _place = _place.Answer(ToPlaceAnswer(choice), utc);
             _book = _place.Book;
-            if (_place.IsFinished && !_place.NeedsAnotherTrack)
+            if (_place.IsFinished)
             {
                 _place = null;
-                _sharpen = SharpenPicker.Choose(_book, utc, _skippedSharpen);
             }
 
+            return;
+        }
+
+        if (_shown is not null)
+        {
+            _book = _book.Apply(new DuelRecord(utc, _shown.Left, _shown.Right, ToOutcome(choice), ComparisonMode.Place));
+            _shown = null;
             return;
         }
 
@@ -83,12 +128,18 @@ public sealed class ComparisonController
         if (_place is not null && !_place.IsFinished)
         {
             _place = _place.Skip();
-            if (_place.IsFinished && !_place.NeedsAnotherTrack)
+            if (_place.IsFinished)
             {
                 _place = null;
-                _sharpen = SharpenPicker.Choose(_book, utc, _skippedSharpen);
             }
 
+            return;
+        }
+
+        if (_shown is not null)
+        {
+            _skippedPairs.Add(SharpenPicker.PairKey(_shown.Left.Url, _shown.Right.Url));
+            _shown = null;
             return;
         }
 
