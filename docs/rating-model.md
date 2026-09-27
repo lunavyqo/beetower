@@ -92,7 +92,7 @@ The expected score `E` is also the chance that the player beats that opponent. P
 
 ## Place mode
 
-The listener picks the song being rated. Ladder chooses the other song. With an empty ladder, the first pick waits for a second song, and that pair is the first duel. After that, each picked song is placed by binary search.
+The listener picks the song being rated. Ladder chooses the other song. With an empty ladder, the first pick waits for a second song, and that one comparison is the whole run, so both songs join the ladder. After that, a picked song is held out of the ranking while binary search walks the ladder. The answers are applied together when the run finishes, and only then does the song get a rank.
 
 Place mode inserts one focus track into the ladder with as few questions as a binary search needs. The opponents are the other tracks that already have at least one comparison, sorted from weakest rating to strongest, frozen at the moment the session starts. Later answers update strengths immediately, but they do not reshuffle the list the search is walking, so the questions keep halving the same range.
 

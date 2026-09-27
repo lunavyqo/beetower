@@ -194,8 +194,8 @@ internal sealed class LadderView : UserControl
         else
         {
             IReadOnlyList<RankedTrack> rank = _session.Controller.Rank(DateTime.UtcNow);
-            _status.Text = prompt.Mode == ComparisonMode.Place
-                ? "Does the song you picked beat this one?"
+            _status.Text = _session.Controller.PlacementProgress.HasValue
+                ? "Finding its place. It joins the ladder when this run is finished."
                 : "Which song do you pick?";
             Bind(_left, prompt.Left, rank);
             Bind(_right, prompt.Right, rank);

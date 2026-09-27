@@ -21,7 +21,7 @@ Copy these two files into MusicBee's Plugins folder (for a normal install, `C:\P
 
 Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **Tools → Ladder**, or right-click a track and choose **Ladder: Rate this track**.
 
-You pick the song you want to rate. Ladder chooses the song on the other side. Click **Pick this** on a card when you have decided. The next comparison for that song follows until it has a place, then you pick another song.
+You pick the song you want to rate. Ladder chooses the song on the other side. Click **Pick this** on a card when you have decided. The song stays off the ladder until that whole run is finished. Then it gets its rank, and you pick another song.
 
 MusicBee does not let a plugin add a tab beside Music or Playlists. Tools → Ladder is the way in.
 

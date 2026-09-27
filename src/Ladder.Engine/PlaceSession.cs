@@ -21,9 +21,13 @@ public sealed class PlaceSession
     private readonly HashSet<string> _asked;
     private readonly DateTime _clock;
     private readonly int _initialOpponents;
+    private readonly LadderBook _basis;
+    private readonly DuelRecord[] _pending;
 
     private PlaceSession(
-        LadderBook book,
+        LadderBook basis,
+        DuelRecord[] pending,
+        bool commit,
         TrackSnapshot focus,
         TrackSnapshot[] opponents,
         int low,
@@ -35,7 +39,9 @@ public sealed class PlaceSession
         int initialOpponents,
         bool needsAnotherTrack)
     {
-        Book = book;
+        _basis = basis;
+        _pending = pending;
+        Book = commit ? Commit(basis, pending) : basis;
         Focus = focus;
         _opponents = opponents;
         _low = low;
@@ -159,6 +165,8 @@ public sealed class PlaceSession
         {
             return new PlaceSession(
                 book,
+                Array.Empty<DuelRecord>(),
+                false,
                 shown,
                 Array.Empty<TrackSnapshot>(),
                 0,
@@ -173,6 +181,8 @@ public sealed class PlaceSession
 
         return new PlaceSession(
             book,
+            Array.Empty<DuelRecord>(),
+            false,
             shown,
             opponents.ToArray(),
             0,
@@ -208,19 +218,22 @@ public sealed class PlaceSession
                 break;
         }
 
-        LadderBook book = Book.Apply(new DuelRecord(clock, prompt.Left, prompt.Right, outcome, ComparisonMode.Place));
+        DuelRecord[] pending = Append(_pending, new DuelRecord(clock, prompt.Left, prompt.Right, outcome, ComparisonMode.Place));
         var asked = new HashSet<string>(_asked, StringComparer.Ordinal);
         asked.Add(prompt.Right.Url);
         if (!_binary)
         {
+            TrackSnapshot[] rest = WithoutFirst(_edges);
             return new PlaceSession(
-                book,
+                _basis,
+                pending,
+                rest.Length == 0,
                 Focus,
                 _opponents,
                 _low,
                 _high,
                 binary: false,
-                edges: WithoutFirst(_edges),
+                edges: rest,
                 asked,
                 clock,
                 _initialOpponents,
@@ -229,23 +242,31 @@ public sealed class PlaceSession
 
         int low = _low;
         int high = _high;
-        bool searchOver = answer == PlaceAnswer.Draw;
+        int[] neighbors;
+        if (answer == PlaceAnswer.Draw)
+        {
+            neighbors = new[] { Mid + 1, Mid - 1 };
+            return FinishBinary(_basis, pending, asked, clock, neighbors, _opponents, low, high);
+        }
+
         if (answer == PlaceAnswer.FocusWins)
         {
             low = Mid + 1;
         }
-        else if (answer == PlaceAnswer.FocusLoses)
+        else
         {
             high = Mid;
         }
 
-        if (searchOver || low >= high)
+        if (low >= high)
         {
-            return FinishBinary(book, asked, clock);
+            return FinishBinary(_basis, pending, asked, clock, new[] { low, low - 1 }, _opponents, low, high);
         }
 
         return new PlaceSession(
-            book,
+            _basis,
+            pending,
+            false,
             Focus,
             _opponents,
             low,
@@ -267,14 +288,17 @@ public sealed class PlaceSession
 
         if (!_binary)
         {
+            TrackSnapshot[] rest = WithoutFirst(_edges);
             return new PlaceSession(
-                Book,
+                _basis,
+                _pending,
+                rest.Length == 0,
                 Focus,
                 _opponents,
                 _low,
                 _high,
                 binary: false,
-                edges: WithoutFirst(_edges),
+                edges: rest,
                 _asked,
                 _clock,
                 _initialOpponents,
@@ -289,11 +313,13 @@ public sealed class PlaceSession
         int high = _high > mid ? _high - 1 : _high;
         if (low >= high)
         {
-            return FinishBinary(Book, _asked, _clock, opponents, low, high);
+            return FinishBinary(_basis, _pending, _asked, _clock, new[] { low, low - 1 }, opponents, low, high);
         }
 
         return new PlaceSession(
-            Book,
+            _basis,
+            _pending,
+            false,
             Focus,
             opponents,
             low,
@@ -313,22 +339,21 @@ public sealed class PlaceSession
         return new ComparisonPrompt(Focus, opponent, ComparisonMode.Place, Focus.Url);
     }
 
-    private PlaceSession FinishBinary(LadderBook book, HashSet<string> asked, DateTime clock)
-    {
-        return FinishBinary(book, asked, clock, _opponents, _low, _high);
-    }
-
     private PlaceSession FinishBinary(
-        LadderBook book,
+        LadderBook basis,
+        DuelRecord[] pending,
         HashSet<string> asked,
         DateTime clock,
+        int[] neighborIndexes,
         TrackSnapshot[] opponents,
         int low,
         int high)
     {
-        TrackSnapshot[] edges = PlaceEdges.Select(book.Rank(clock), Focus.Url, asked);
+        TrackSnapshot[] edges = Neighbors(opponents, neighborIndexes, asked);
         return new PlaceSession(
-            book,
+            basis,
+            pending,
+            edges.Length == 0,
             Focus,
             opponents,
             low,
@@ -339,6 +364,49 @@ public sealed class PlaceSession
             clock,
             _initialOpponents,
             needsAnotherTrack: false);
+    }
+
+    private static TrackSnapshot[] Neighbors(TrackSnapshot[] opponents, int[] indexes, HashSet<string> asked)
+    {
+        var chosen = new List<TrackSnapshot>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = 0; i < indexes.Length; i++)
+        {
+            int index = indexes[i];
+            if (index < 0 || index >= opponents.Length)
+            {
+                continue;
+            }
+
+            TrackSnapshot opponent = opponents[index];
+            if (asked.Contains(opponent.Url) || !seen.Add(opponent.Url))
+            {
+                continue;
+            }
+
+            chosen.Add(opponent);
+        }
+
+        return chosen.ToArray();
+    }
+
+    private static DuelRecord[] Append(DuelRecord[] pending, DuelRecord duel)
+    {
+        var next = new DuelRecord[pending.Length + 1];
+        Array.Copy(pending, next, pending.Length);
+        next[pending.Length] = duel;
+        return next;
+    }
+
+    private static LadderBook Commit(LadderBook basis, DuelRecord[] pending)
+    {
+        LadderBook book = basis;
+        for (int i = 0; i < pending.Length; i++)
+        {
+            book = book.Apply(pending[i]);
+        }
+
+        return book;
     }
 
     private static TrackSnapshot[] WithoutFirst(TrackSnapshot[] edges)

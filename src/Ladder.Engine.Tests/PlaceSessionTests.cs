@@ -17,6 +17,23 @@ public sealed class PlaceSessionTests
     }
 
     [Fact]
+    public void Rank_IsWithheldUntilTheRunFinishes()
+    {
+        PlaceSession session = PlaceSession.Start(Trio(), Snap("n"), T0);
+        session = session.Answer(PlaceAnswer.FocusWins, T0.AddMinutes(1));
+
+        Assert.False(session.IsFinished);
+        Assert.DoesNotContain(session.Book.Rank(T0), row => row.Track.Url == "n");
+
+        while (!session.IsFinished)
+        {
+            session = session.Answer(PlaceAnswer.FocusWins, T0.AddMinutes(2));
+        }
+
+        Assert.Contains(session.Book.Rank(T0), row => row.Track.Url == "n");
+    }
+
+    [Fact]
     public void Answers_WalkTowardTheStrongEndThenStop()
     {
         PlaceSession session = PlaceSession.Start(Trio(), Snap("n"), T0);

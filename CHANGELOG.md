@@ -8,3 +8,4 @@
 - Tools → Ladder opens straight onto the next library pair. The listener does not pick the songs.
 - Each song on the comparison has a playback bar. Drag it to move through that song.
 - You pick the song to rate. Ladder chooses the comparison, and the cards are the choice.
+- A song joins the ladder only after its placement run finishes, not after the first comparison.
