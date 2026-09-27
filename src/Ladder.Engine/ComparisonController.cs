@@ -1,5 +1,34 @@
 namespace Ladder;
 
+/// <summary>What an answer did to the current placement run. Sharpen questions leave this empty.</summary>
+public readonly struct RunFinish
+{
+    private RunFinish(bool completed, TrackSnapshot? focus, TrackSnapshot? other)
+    {
+        Completed = completed;
+        Focus = focus;
+        Other = other;
+    }
+
+    public bool Completed { get; }
+
+    public TrackSnapshot? Focus { get; }
+
+    public TrackSnapshot? Other { get; }
+
+    public static RunFinish None => new RunFinish(false, null, null);
+
+    public static RunFinish Placed(TrackSnapshot focus)
+    {
+        return new RunFinish(true, focus, null);
+    }
+
+    public static RunFinish Paired(TrackSnapshot left, TrackSnapshot right)
+    {
+        return new RunFinish(true, left, right);
+    }
+}
+
 public enum ComparisonChoice
 {
     Left = 0,
@@ -104,7 +133,7 @@ public sealed class ComparisonController
         _sharpen = SharpenPicker.Choose(_book, utc, _skippedSharpen);
     }
 
-    public void Choose(ComparisonChoice choice, DateTime utc)
+    public RunFinish Choose(ComparisonChoice choice, DateTime utc)
     {
         if (!Enum.IsDefined(typeof(ComparisonChoice), choice))
         {
@@ -113,51 +142,59 @@ public sealed class ComparisonController
 
         if (_place is not null && !_place.IsFinished)
         {
+            TrackSnapshot focus = _place.Focus;
             _place = _place.Answer(ToPlaceAnswer(choice), utc);
             _book = _place.Book;
             if (_place.IsFinished)
             {
                 _place = null;
+                return RunFinish.Placed(focus);
             }
 
-            return;
+            return RunFinish.None;
         }
 
         if (_shown is not null)
         {
-            _book = _book.Apply(new DuelRecord(utc, _shown.Left, _shown.Right, ToOutcome(choice), ComparisonMode.Place));
+            TrackSnapshot left = _shown.Left;
+            TrackSnapshot right = _shown.Right;
+            _book = _book.Apply(new DuelRecord(utc, left, right, ToOutcome(choice), ComparisonMode.Place));
             _shown = null;
-            return;
+            return RunFinish.Paired(left, right);
         }
 
         ComparisonPrompt prompt = _sharpen ?? throw new InvalidOperationException("There is no question to answer.");
         _book = _book.Apply(new DuelRecord(utc, prompt.Left, prompt.Right, ToOutcome(choice), ComparisonMode.Sharpen));
         _sharpen = SharpenPicker.Choose(_book, utc, _skippedSharpen);
+        return RunFinish.None;
     }
 
-    public void Skip(DateTime utc)
+    public RunFinish Skip(DateTime utc)
     {
         if (_place is not null && !_place.IsFinished)
         {
+            TrackSnapshot focus = _place.Focus;
             _place = _place.Skip();
             if (_place.IsFinished)
             {
                 _place = null;
+                return RunFinish.Placed(focus);
             }
 
-            return;
+            return RunFinish.None;
         }
 
         if (_shown is not null)
         {
             _skippedPairs.Add(SharpenPicker.PairKey(_shown.Left.Url, _shown.Right.Url));
             _shown = null;
-            return;
+            return RunFinish.None;
         }
 
         ComparisonPrompt prompt = _sharpen ?? throw new InvalidOperationException("There is no question to skip.");
         _skippedSharpen.Add(SharpenPicker.PairKey(prompt.Left.Url, prompt.Right.Url));
         _sharpen = SharpenPicker.Choose(_book, utc, _skippedSharpen);
+        return RunFinish.None;
     }
 
     public IReadOnlyList<RankedTrack> Rank(DateTime utc)

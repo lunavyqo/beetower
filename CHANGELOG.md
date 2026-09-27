@@ -8,3 +8,4 @@
 - Each comparison is a cover with the title, rank, playback bar, and Pick this directly under it. About the same lines up with the two Pick this buttons. Drag a bar to move through that song.
 - You pick the song to rate. Ladder chooses the comparison, and the cards are the choice.
 - A song joins the ladder only after its placement run finishes, not after the first comparison.
+- When that run finishes, Ladder shows the song's rank and stays there until you rate another song.

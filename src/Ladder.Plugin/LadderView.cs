@@ -13,6 +13,7 @@ internal sealed class LadderView : UserControl
     private readonly Button _skip;
     private readonly Button _different;
     private readonly SongPicker _picker;
+    private readonly RunReceiptView _receipt;
     private StageTheme _theme = StageTheme.Dark();
 
     public LadderView(LadderSession session)
@@ -58,6 +59,8 @@ internal sealed class LadderView : UserControl
         };
 
         _picker = new SongPicker { Dock = DockStyle.Fill };
+        _receipt = new RunReceiptView { Dock = DockStyle.Fill, Visible = false };
+        _receipt.Dismissed += (sender, args) => _session.DismissRun();
         _picker.Picked += (sender, url) => _session.PickTrack(url);
         _picker.QueryChanged += (sender, query) =>
         {
@@ -76,6 +79,7 @@ internal sealed class LadderView : UserControl
         Controls.Add(_skip);
         Controls.Add(_different);
         Controls.Add(_picker);
+        Controls.Add(_receipt);
 
         Apply(_theme);
         _session.Changed += OnChanged;
@@ -119,12 +123,13 @@ internal sealed class LadderView : UserControl
         StyleLink(_skip, _theme.Muted);
         StyleLink(_different, _theme.Muted);
         _picker.Apply(theme);
+        _receipt.Apply(theme);
         Invalidate(true);
     }
 
     protected override bool ProcessCmdKey(ref Message message, Keys keyData)
     {
-        if (_picker.Visible)
+        if (_picker.Visible || _receipt.Visible)
         {
             return base.ProcessCmdKey(ref message, keyData);
         }
@@ -186,14 +191,21 @@ internal sealed class LadderView : UserControl
     {
         ComparisonPrompt prompt = _session.Controller.Current;
         bool asking = prompt != null;
+        bool finished = !asking && _session.Receipt != null;
         _status.Visible = asking;
         _left.Visible = asking;
         _right.Visible = asking;
         _same.Visible = asking;
         _skip.Visible = asking;
         _different.Visible = asking;
-        _picker.Visible = !asking;
-        if (!asking)
+        _receipt.Visible = finished;
+        _picker.Visible = !asking && !finished;
+        if (finished)
+        {
+            _receipt.Show(_session.Receipt, _session.ArtFor(_session.Receipt.Url));
+            _receipt.BringToFront();
+        }
+        else if (!asking)
         {
             TrackChoice playing = _session.PlayingChoice == null ? null : _session.PlayingChoice();
             TrackChoice selected = _session.SelectedChoice == null ? null : _session.SelectedChoice();
@@ -250,6 +262,12 @@ internal sealed class LadderView : UserControl
         if (_picker.Visible)
         {
             _picker.SetBounds(0, 0, ClientSize.Width, ClientSize.Height);
+            return;
+        }
+
+        if (_receipt.Visible)
+        {
+            _receipt.SetBounds(0, 0, ClientSize.Width, ClientSize.Height);
             return;
         }
 

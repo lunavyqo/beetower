@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using Ladder;
 
 namespace MusicBeePlugin;
@@ -59,6 +60,8 @@ internal sealed class LadderSession
     public string LoadError { get; }
 
     public string Note { get; private set; }
+
+    public RunReceipt Receipt { get; private set; }
 
     public string PlayingUrl { get; private set; }
 
@@ -238,6 +241,7 @@ internal sealed class LadderSession
         }
 
         LadderBook before = Controller.Book;
+        Receipt = null;
         Controller.Place(focus, DateTime.UtcNow);
         After(before);
     }
@@ -268,6 +272,7 @@ internal sealed class LadderSession
             return;
         }
 
+        Receipt = null;
         Controller.ShowPair(left, right);
         Note = null;
         Changed?.Invoke(this, EventArgs.Empty);
@@ -281,7 +286,8 @@ internal sealed class LadderSession
         }
 
         LadderBook before = Controller.Book;
-        Controller.Choose(choice, DateTime.UtcNow);
+        RunFinish finish = Controller.Choose(choice, DateTime.UtcNow);
+        Remember(finish);
         After(before);
         AskIfIdle();
     }
@@ -294,7 +300,8 @@ internal sealed class LadderSession
         }
 
         LadderBook before = Controller.Book;
-        Controller.Skip(DateTime.UtcNow);
+        RunFinish finish = Controller.Skip(DateTime.UtcNow);
+        Remember(finish);
         After(before);
         AskIfIdle();
     }
@@ -302,6 +309,33 @@ internal sealed class LadderSession
     public void Report(string note)
     {
         Note = note;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ClearReceipt()
+    {
+        if (Receipt == null)
+        {
+            return;
+        }
+
+        Receipt = null;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void DismissRun()
+    {
+        if (Receipt == null)
+        {
+            return;
+        }
+
+        Receipt = null;
+        if (string.IsNullOrEmpty(Note))
+        {
+            Note = "Pick the next song.";
+        }
+
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -353,6 +387,64 @@ internal sealed class LadderSession
         }
 
         PlacedCount = placed;
+    }
+
+    private void Remember(RunFinish finish)
+    {
+        if (!finish.Completed || finish.Focus == null)
+        {
+            return;
+        }
+
+        IReadOnlyList<RankedTrack> rank = Controller.Rank(DateTime.UtcNow);
+        string score = ScoreOf(finish.Focus.Url, rank);
+        Receipt = new RunReceipt
+        {
+            Url = finish.Focus.Url,
+            Title = TitleOf(finish.Focus),
+            Detail = JoinDetail(finish.Focus.Artist, finish.Focus.Album),
+            Score = score,
+            Placed = !string.Equals(score, RatingText.NotPlaced, StringComparison.Ordinal),
+            OtherLine = finish.Other == null ? "" : TitleOf(finish.Other) + "   ·   " + ScoreOf(finish.Other.Url, rank),
+        };
+    }
+
+    private static string ScoreOf(string url, IReadOnlyList<RankedTrack> rank)
+    {
+        foreach (RankedTrack row in rank)
+        {
+            if (!string.Equals(row.Track.Url, url, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "   ·   " + row.ScoreText;
+        }
+
+        return RatingText.NotPlaced;
+    }
+
+    private static string TitleOf(TrackSnapshot track)
+    {
+        if (!string.IsNullOrEmpty(track.Title))
+        {
+            return track.Title;
+        }
+
+        string file = Path.GetFileName(track.Url);
+        return string.IsNullOrEmpty(file) ? track.Url : file;
+    }
+
+    private static string JoinDetail(string artist, string album)
+    {
+        bool hasArtist = !string.IsNullOrEmpty(artist);
+        bool hasAlbum = !string.IsNullOrEmpty(album);
+        if (hasArtist && hasAlbum)
+        {
+            return artist + "   ·   " + album;
+        }
+
+        return hasArtist ? artist : (hasAlbum ? album : "");
     }
 
     private void AskIfIdle()

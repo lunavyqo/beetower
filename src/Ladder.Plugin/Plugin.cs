@@ -252,6 +252,7 @@ public partial class Plugin
     private void BeginRating(string url)
     {
         EnsureSession();
+        _session.ClearReceipt();
         if (string.IsNullOrEmpty(url))
         {
             return;
@@ -281,6 +282,7 @@ public partial class Plugin
     private void AbandonRating()
     {
         _anchorUrl = null;
+        _session.ClearReceipt();
         _session.Controller.ClearQuestion();
         _session.Report("Pick a song to rate.");
     }
