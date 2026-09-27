@@ -19,7 +19,9 @@ Copy these two files into MusicBee's Plugins folder (for a normal install, `C:\P
 - `src/Ladder.Plugin/bin/Release/net48/mb_Ladder.dll`
 - `src/Ladder.Plugin/bin/Release/net48/Ladder.Engine.dll`
 
-Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **Tools → Ladder**. The window fills the screen with the next two songs from the library. The left and right arrow keys switch which one is playing. **Prefer this** records the choice, and the next pair appears on its own.
+Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **Tools → Ladder**, or right-click a track and choose **Ladder: Rate this track**.
+
+You pick the song you want to rate. Ladder chooses the song on the other side. Click **Pick this** on a card when you have decided. The next comparison for that song follows until it has a place, then you pick another song.
 
 MusicBee does not let a plugin add a tab beside Music or Playlists. Tools → Ladder is the way in.
 
@@ -27,7 +29,7 @@ Answers are stored in `ladder\ladder.json` under MusicBee's persistent storage f
 
 ## Asking
 
-The two covers take the screen. Ladder picks them from the library. Click a cover, or press the left and right arrows, to play that song. **Prefer this** under a cover is the rating, and the next pair follows immediately.
+The song you picked stays on the left. Click its cover, or the other cover, to listen. Drag the bar under a cover to move through that song. **Pick this** at the bottom of a card is the rating.
 
 While a track is being placed, the song on the left stays put and the one on the right is the next comparison from the middle of the ladder, then half of what remains.
 

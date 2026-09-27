@@ -85,6 +85,13 @@ public sealed class ComparisonController
         _shown = new ComparisonPrompt(left, right, ComparisonMode.Place, left.Url);
     }
 
+    public void ClearQuestion()
+    {
+        _place = null;
+        _shown = null;
+        _sharpen = null;
+    }
+
     public void Sharpen(DateTime utc)
     {
         if (_sharpen is null)

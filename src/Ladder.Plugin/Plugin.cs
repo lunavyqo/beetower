@@ -12,8 +12,8 @@ public partial class Plugin
     private Form _window;
     private string[] _library = new string[0];
     private bool _libraryLoaded;
-    private bool _fillingQuestion;
     private bool _menusAdded;
+    private string _anchorUrl;
     private System.Windows.Forms.Timer _clock;
     private string _pendingSeekUrl;
     private double _pendingSeek = -1;
@@ -87,7 +87,6 @@ public partial class Plugin
     public int OnDockablePanelCreated(Control panel)
     {
         EnsureSession();
-        EnsureQuestion();
         _panelView = CreateView();
         panel.Controls.Add(_panelView);
         return -1;
@@ -106,7 +105,12 @@ public partial class Plugin
         _session.PlaceUrlRequested += PlacePlaying;
         _session.PlayRequested += OnPlayRequested;
         _session.SeekRequested += OnSeekRequested;
-        _session.NeedsQuestion += (sender, args) => EnsureQuestion();
+        _session.NeedsQuestion += (sender, args) => _session.Report("Pick the next song.");
+        _session.TrackPicked += (sender, url) => BeginRating(url);
+        _session.AbandonRating = AbandonRating;
+        _session.PlayingChoice = delegate { return ChoiceFor(PlayingUrl(), "Now playing"); };
+        _session.SelectedChoice = delegate { return ChoiceFor(SelectedUrl(), "Selected"); };
+        _session.FindTracks = SearchTracks;
         _session.LoadArt = LoadArt;
         _session.SetPlaying(PlayingUrl());
         _clock = new System.Windows.Forms.Timer();
@@ -170,47 +174,6 @@ public partial class Plugin
         _pendingSeekUrl = null;
     }
 
-    private void EnsureQuestion()
-    {
-        if (_session == null || _fillingQuestion || _session.Controller.Current != null)
-        {
-            return;
-        }
-
-        _fillingQuestion = true;
-        try
-        {
-            EnsureLibrary();
-            NextComparisonPlan plan = NextComparison.Plan(
-                _session.Controller.Book,
-                _library,
-                PlayingUrl(),
-                _session.Controller.SkippedPairKeys);
-            switch (plan.Kind)
-            {
-                case NextComparisonKind.Pair:
-                    _session.ShowPair(SnapshotOf(plan.LeftUrl), SnapshotOf(plan.RightUrl));
-                    PlayIfDifferent(plan.LeftUrl);
-                    break;
-                case NextComparisonKind.Place:
-                    _session.Place(SnapshotOf(plan.LeftUrl));
-                    PlayCurrentLeft();
-                    break;
-                case NextComparisonKind.Sharpen:
-                    _session.Sharpen();
-                    PlayCurrentLeft();
-                    break;
-                default:
-                    _session.Report("Ladder needs at least two tracks in the library.");
-                    break;
-            }
-        }
-        finally
-        {
-            _fillingQuestion = false;
-        }
-    }
-
     private void PlayCurrentLeft()
     {
         ComparisonPrompt prompt = _session.Controller.Current;
@@ -269,6 +232,7 @@ public partial class Plugin
         }
 
         _menusAdded = true;
+        _api.MB_AddMenuItem("context.Main/Ladder: Rate this track", null, RateSelected);
         _api.MB_AddMenuItem("mnuView/Ladder", null, OpenLadder);
         _api.MB_AddMenuItem("mnuTools/Ladder", "Tools: Ladder", OpenLadder);
         _api.MB_RegisterCommand("Ladder: Open", OpenLadder);
@@ -277,7 +241,158 @@ public partial class Plugin
     private void OpenLadder(object sender, EventArgs args)
     {
         EnsureSession();
-        EnsureQuestion();
+        if (_session.Controller.Current == null && string.IsNullOrEmpty(_session.Note))
+        {
+            _session.Report("Pick a song to rate.");
+        }
+
+        Reveal();
+    }
+
+    private void BeginRating(string url)
+    {
+        EnsureSession();
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        if (RatedOthers(url) == 0)
+        {
+            if (string.IsNullOrEmpty(_anchorUrl) || string.Equals(_anchorUrl, url, StringComparison.Ordinal))
+            {
+                _anchorUrl = url;
+                _session.Report("Pick another song to compare with " + NameOf(url) + ".");
+                return;
+            }
+
+            string anchor = _anchorUrl;
+            _anchorUrl = null;
+            _session.ShowPair(SnapshotOf(anchor), SnapshotOf(url));
+            PlayIfDifferent(anchor);
+            return;
+        }
+
+        _anchorUrl = null;
+        _session.Place(SnapshotOf(url));
+        PlayCurrentLeft();
+    }
+
+    private void AbandonRating()
+    {
+        _anchorUrl = null;
+        _session.Controller.ClearQuestion();
+        _session.Report("Pick a song to rate.");
+    }
+
+    private int RatedOthers(string url)
+    {
+        int count = 0;
+        foreach (TrackState track in _session.Controller.Book.Tracks)
+        {
+            if (track.ComparisonCount > 0 && !string.Equals(track.Url, url, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private string NameOf(string url)
+    {
+        string title = Tag(url, MetaDataType.TrackTitle);
+        if (!string.IsNullOrEmpty(title))
+        {
+            return title;
+        }
+
+        string file = Path.GetFileName(url);
+        return string.IsNullOrEmpty(file) ? url : file;
+    }
+
+    private TrackChoice ChoiceFor(string url, string source)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return null;
+        }
+
+        return new TrackChoice
+        {
+            Url = url,
+            Title = NameOf(url),
+            Artist = Tag(url, MetaDataType.Artist) ?? "",
+            Source = source,
+        };
+    }
+
+    private IReadOnlyList<TrackChoice> SearchTracks(string query)
+    {
+        var matches = new List<TrackChoice>();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return matches;
+        }
+
+        EnsureLibrary();
+        string needle = query.Trim();
+        for (int i = 0; i < _library.Length; i++)
+        {
+            string title = Tag(_library[i], MetaDataType.TrackTitle) ?? "";
+            string artist = Tag(_library[i], MetaDataType.Artist) ?? "";
+            if (title.IndexOf(needle, StringComparison.OrdinalIgnoreCase) < 0
+                && artist.IndexOf(needle, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                continue;
+            }
+
+            matches.Add(new TrackChoice
+            {
+                Url = _library[i],
+                Title = string.IsNullOrEmpty(title) ? NameOf(_library[i]) : title,
+                Artist = artist,
+            });
+            if (matches.Count == 40)
+            {
+                break;
+            }
+        }
+
+        return matches;
+    }
+
+    private string SelectedUrl()
+    {
+        string[] files;
+        if (!_api.Library_QueryFilesEx("domain=SelectedFiles", out files) || files == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < files.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(files[i]))
+            {
+                return files[i];
+            }
+        }
+
+        return null;
+    }
+
+    private void RateSelected(object sender, EventArgs args)
+    {
+        EnsureSession();
+        string url = SelectedUrl();
+        if (string.IsNullOrEmpty(url))
+        {
+            _session.Report("Select a track, then rate it.");
+            Reveal();
+            return;
+        }
+
+        BeginRating(url);
         Reveal();
     }
 

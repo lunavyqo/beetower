@@ -86,6 +86,24 @@ internal sealed class LadderSession
 
     public Func<string, Image> LoadArt { get; set; }
 
+    public Func<TrackChoice> PlayingChoice { get; set; }
+
+    public Func<TrackChoice> SelectedChoice { get; set; }
+
+    public Func<string, IReadOnlyList<TrackChoice>> FindTracks { get; set; }
+
+    public Action AbandonRating { get; set; }
+
+    public void PickTrack(string url)
+    {
+        if (!string.IsNullOrEmpty(url) && TrackPicked != null)
+        {
+            TrackPicked(this, url);
+        }
+    }
+
+    public event EventHandler<string> TrackPicked;
+
     private readonly Dictionary<string, Image> _art = new Dictionary<string, Image>(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _positionMs = new Dictionary<string, int>(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _durationMs = new Dictionary<string, int>(StringComparer.Ordinal);
