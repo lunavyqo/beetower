@@ -29,7 +29,7 @@ Answers are stored in `ladder\ladder.json` under MusicBee's persistent storage f
 
 ## Asking
 
-The song you picked stays on the left. Click its cover, or the other cover, to listen. Drag the bar under a cover to move through that song. **Pick this** at the bottom of a card is the rating.
+The song you picked stays on the left. Click either cover to listen. The title, rank, playback bar, and **Pick this** sit under that cover. **About the same** lines up with the two buttons. Drag a bar to move through that song.
 
 While a track is being placed, the song on the left stays put and the one on the right is the next comparison from the middle of the ladder, then half of what remains.
 

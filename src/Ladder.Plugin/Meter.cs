@@ -1,3 +1,5 @@
+using System.Drawing.Drawing2D;
+
 namespace MusicBeePlugin;
 
 internal sealed class Meter : Control
@@ -8,10 +10,10 @@ internal sealed class Meter : Control
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         TabStop = false;
-        Height = 8;
+        Height = 22;
         Cursor = Cursors.Hand;
-        TrackColor = Color.FromArgb(48, 48, 48);
-        FillColor = Color.FromArgb(230, 230, 230);
+        TrackColor = Color.FromArgb(214, 214, 214);
+        FillColor = Color.FromArgb(20, 20, 20);
     }
 
     public event EventHandler<double> Scrubbed;
@@ -82,22 +84,52 @@ internal sealed class Meter : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(BackColor);
-        Rectangle track = new Rectangle(0, 0, Math.Max(0, Width - 1), Math.Max(0, Height - 1));
-        using (Brush trackBrush = new SolidBrush(TrackColor))
-        {
-            e.Graphics.FillRectangle(trackBrush, track);
-        }
-
+        Graphics graphics = e.Graphics;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.Clear(BackColor);
+        int barHeight = Math.Min(6, Math.Max(4, Height / 4));
+        int y = (Height - barHeight) / 2;
+        Rectangle track = new Rectangle(0, y, Math.Max(0, Width - 1), barHeight);
+        FillPill(graphics, track, TrackColor);
         int fillWidth = (int)Math.Round(track.Width * _fraction);
         if (fillWidth <= 0)
         {
             return;
         }
 
-        using (Brush fillBrush = new SolidBrush(FillColor))
+        if (fillWidth < barHeight)
         {
-            e.Graphics.FillRectangle(fillBrush, new Rectangle(track.X, track.Y, fillWidth, track.Height));
+            fillWidth = barHeight;
+        }
+
+        if (fillWidth > track.Width)
+        {
+            fillWidth = track.Width;
+        }
+
+        FillPill(graphics, new Rectangle(track.X, track.Y, fillWidth, track.Height), FillColor);
+    }
+
+    private static void FillPill(Graphics graphics, Rectangle bounds, Color color)
+    {
+        if (bounds.Width <= 1 || bounds.Height <= 1)
+        {
+            return;
+        }
+
+        int diameter = bounds.Height;
+        if (diameter > bounds.Width)
+        {
+            diameter = bounds.Width;
+        }
+
+        using (GraphicsPath path = new GraphicsPath())
+        using (Brush brush = new SolidBrush(color))
+        {
+            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 90, 180);
+            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 180);
+            path.CloseFigure();
+            graphics.FillPath(brush, path);
         }
     }
 }

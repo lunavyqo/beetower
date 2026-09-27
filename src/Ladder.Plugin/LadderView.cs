@@ -92,9 +92,18 @@ internal sealed class LadderView : UserControl
     {
         _theme = StageTheme.For(background);
         _theme.Text = text;
-        _theme.Accent = accent.GetBrightness() < 0.2f && _theme.Page.GetBrightness() < 0.5f
-            ? Color.White
-            : accent;
+        bool lightPage = _theme.Page.GetBrightness() > 0.5f;
+        if (lightPage && accent.GetBrightness() > 0.82f)
+        {
+            accent = Color.FromArgb(20, 20, 20);
+        }
+
+        if (!lightPage && accent.GetBrightness() < 0.25f)
+        {
+            accent = Color.White;
+        }
+
+        _theme.Accent = accent;
         Apply(_theme);
     }
 
@@ -106,9 +115,9 @@ internal sealed class LadderView : UserControl
         _status.BackColor = theme.Page;
         _left.Apply(theme);
         _right.Apply(theme);
-        StyleQuiet(_same);
-        StyleQuiet(_skip);
-        StyleQuiet(_different);
+        StyleLink(_same, _theme.Text);
+        StyleLink(_skip, _theme.Muted);
+        StyleLink(_different, _theme.Muted);
         _picker.Apply(theme);
         Invalidate(true);
     }
@@ -244,7 +253,7 @@ internal sealed class LadderView : UserControl
             return;
         }
 
-        int pad = 28;
+        int pad = 24;
         int width = ClientSize.Width;
         int height = ClientSize.Height;
         if (width < 80 || height < 80)
@@ -252,21 +261,37 @@ internal sealed class LadderView : UserControl
             return;
         }
 
-        _status.SetBounds(pad, 18, width - pad * 2, 28);
-        int top = 58;
-        int center = 132;
-        int cardWidth = Math.Max(180, (width - pad * 2 - center - 36) / 2);
-        int cardHeight = Math.Max(280, height - top - 28);
-        int group = cardWidth * 2 + center + 36;
-        int x = Math.Max(pad, (width - group) / 2);
-        _left.SetBounds(x, top, cardWidth, cardHeight);
-        _right.SetBounds(x + cardWidth + center + 36, top, cardWidth, cardHeight);
-        int mid = x + cardWidth + 18;
-        int midY = top + cardHeight / 2;
-        _same.SetBounds(mid, midY - 28, center, 36);
-        _skip.SetBounds(mid, midY + 16, center, 32);
-        _different.SetBounds(pad, 18, 220, 28);
-        _status.SetBounds(pad + 230, 18, width - pad * 2 - 230, 28);
+        _different.SetBounds(pad, 16, 210, 32);
+        _status.SetBounds(pad + 218, 16, Math.Max(40, width - pad * 2 - 218), 32);
+        int top = 60;
+        int bottom = 20;
+        int needed = TextRenderer.MeasureText("About the same", _same.Font, new Size(400, 40), TextFormatFlags.NoPadding).Width + 28;
+        int gutter = Math.Max(148, needed);
+        int availableW = width - pad * 2 - gutter;
+        int availableH = height - top - bottom;
+        if (availableW < 220)
+        {
+            gutter = 112;
+            availableW = width - pad * 2 - gutter;
+        }
+
+        int maxCardW = Math.Max(140, availableW / 2);
+        CardLayout metrics = _left.Measure(maxCardW, Math.Max(160, availableH));
+        int group = metrics.Width * 2 + gutter;
+        int x = Math.Max(8, (width - group) / 2);
+        int y = top + Math.Max(0, (availableH - metrics.Height) / 2);
+        _left.SetBounds(x, y, metrics.Width, metrics.Height);
+        _right.SetBounds(x + metrics.Width + gutter, y, metrics.Width, metrics.Height);
+        int sameX = x + metrics.Width + 8;
+        int sameW = Math.Max(40, gutter - 16);
+        int skipY = y + metrics.PickTop - 34;
+        if (skipY < top)
+        {
+            skipY = top;
+        }
+
+        _same.SetBounds(sameX, y + metrics.PickTop, sameW, metrics.PickHeight);
+        _skip.SetBounds(sameX, skipY, sameW, 30);
     }
 
     private void Play(bool left)
@@ -317,7 +342,7 @@ internal sealed class LadderView : UserControl
                 continue;
             }
 
-            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "    " + row.ScoreText;
+            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "   ·   " + row.ScoreText;
         }
 
         return RatingText.NotPlaced;
@@ -370,11 +395,13 @@ internal sealed class LadderView : UserControl
         return button;
     }
 
-    private void StyleQuiet(Button button)
+    private void StyleLink(Button button, Color color)
     {
+        button.UseVisualStyleBackColor = false;
         button.BackColor = _theme.Page;
-        button.ForeColor = _theme.Muted;
+        button.ForeColor = color;
+        button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = _theme.Card;
-        button.FlatAppearance.MouseDownBackColor = _theme.Pick;
+        button.FlatAppearance.MouseDownBackColor = _theme.Line;
     }
 }
