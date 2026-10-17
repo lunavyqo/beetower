@@ -23,6 +23,8 @@ Restart MusicBee, then enable Ladder under Preferences, Plugins. Open it from **
 
 You pick the song you want to rate. Ladder chooses the song on the other side. Click **Pick this** on a card when you have decided. The song stays off the ladder until that whole run is finished. Ladder then shows its rank and waits until you rate another song.
 
+**The ladder** lists every song that has finished a run, strongest first. Open it from the song picker, the finish screen, or the comparison. Click a row to play that song.
+
 MusicBee does not let a plugin add a tab beside Music or Playlists. Tools → Ladder is the way in.
 
 Answers are stored in `ladder\ladder.json` under MusicBee's persistent storage folder. Removing the plugin leaves that file where it is.

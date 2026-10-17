@@ -9,3 +9,4 @@
 - You pick the song to rate. Ladder chooses the comparison, and the cards are the choice.
 - A song joins the ladder only after its placement run finishes, not after the first comparison.
 - When that run finishes, Ladder shows the song's rank and stays there until you rate another song.
+- The ladder lists every placed song, strongest first. Open it from the song picker, the finish screen, or a comparison.

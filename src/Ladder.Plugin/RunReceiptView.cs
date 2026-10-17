@@ -21,6 +21,7 @@ internal sealed class RunReceiptView : UserControl
     private readonly Label _score;
     private readonly Label _other;
     private readonly Button _again;
+    private readonly Button _ladder;
     private readonly Font _markFont = new Font("Segoe UI", 42f, FontStyle.Bold, GraphicsUnit.Point);
     private readonly Font _scorePlacedFont = new Font("Segoe UI", 20f, FontStyle.Bold, GraphicsUnit.Point);
     private readonly Font _scoreOpenFont = new Font("Segoe UI", 14f, FontStyle.Regular, GraphicsUnit.Point);
@@ -53,16 +54,35 @@ internal sealed class RunReceiptView : UserControl
                 Dismissed(this, EventArgs.Empty);
             }
         };
+        _ladder = new Button
+        {
+            Text = "See the ladder",
+            FlatStyle = FlatStyle.Flat,
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Point),
+            UseVisualStyleBackColor = false,
+        };
+        _ladder.FlatAppearance.BorderSize = 0;
+        _ladder.Click += (sender, args) =>
+        {
+            if (LadderRequested != null)
+            {
+                LadderRequested(this, EventArgs.Empty);
+            }
+        };
         Controls.Add(_headline);
         Controls.Add(_title);
         Controls.Add(_detail);
         Controls.Add(_score);
         Controls.Add(_other);
         Controls.Add(_again);
+        Controls.Add(_ladder);
         Apply(_theme);
     }
 
     public event EventHandler Dismissed;
+
+    public event EventHandler LadderRequested;
 
     public void Apply(StageTheme theme)
     {
@@ -78,6 +98,10 @@ internal sealed class RunReceiptView : UserControl
         _again.ForeColor = _theme.Pick.GetBrightness() > 0.6f ? Color.FromArgb(16, 16, 16) : Color.White;
         _again.FlatAppearance.MouseOverBackColor = _theme.PickHover;
         _again.FlatAppearance.MouseDownBackColor = _theme.PickHover;
+        _ladder.BackColor = _theme.Page;
+        _ladder.ForeColor = _theme.Text;
+        _ladder.FlatAppearance.MouseOverBackColor = _theme.Card;
+        _ladder.FlatAppearance.MouseDownBackColor = _theme.Line;
         Invalidate(true);
     }
 
@@ -103,7 +127,7 @@ internal sealed class RunReceiptView : UserControl
         int x = Math.Max(24, (ClientSize.Width - width) / 2);
         bool other = _other.Text.Length > 0;
         int art = _art == null && _title.Text.Length == 0 ? 0 : Math.Min(220, width);
-        int block = 52 + 18 + art + 16 + 40 + 28 + 48 + 22 + (other ? 28 : 0) + 48;
+        int block = 52 + 18 + art + 16 + 40 + 28 + 48 + 22 + (other ? 28 : 0) + 48 + 40;
         int y = Math.Max(28, (ClientSize.Height - block) / 2);
         _headline.SetBounds(x, y, width, 52);
         y += 70;
@@ -125,6 +149,7 @@ internal sealed class RunReceiptView : UserControl
         }
 
         _again.SetBounds(x, y + 8, width, 48);
+        _ladder.SetBounds(x, y + 60, width, 36);
     }
 
     protected override void OnPaint(PaintEventArgs e)

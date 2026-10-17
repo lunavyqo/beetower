@@ -8,6 +8,7 @@ internal sealed class SongPicker : UserControl
     private readonly Button _selected;
     private readonly TextBox _search;
     private readonly ListBox _results;
+    private readonly Button _ladder;
     private readonly System.Windows.Forms.Timer _debounce;
     private StageTheme _theme = StageTheme.Dark();
 
@@ -45,6 +46,22 @@ internal sealed class SongPicker : UserControl
         };
         _results.DrawItem += DrawResult;
         _results.MouseClick += ResultClicked;
+        _ladder = new Button
+        {
+            Text = "The ladder",
+            FlatStyle = FlatStyle.Flat,
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Point),
+            UseVisualStyleBackColor = false,
+        };
+        _ladder.FlatAppearance.BorderSize = 0;
+        _ladder.Click += (sender, args) =>
+        {
+            if (LadderRequested != null)
+            {
+                LadderRequested(this, EventArgs.Empty);
+            }
+        };
         _playing.Click += (sender, args) => Choose(_playing.Tag as string);
         _selected.Click += (sender, args) => Choose(_selected.Tag as string);
         _debounce = new System.Windows.Forms.Timer { Interval = 180 };
@@ -67,12 +84,15 @@ internal sealed class SongPicker : UserControl
         Controls.Add(_selected);
         Controls.Add(_search);
         Controls.Add(_results);
+        Controls.Add(_ladder);
         Apply(_theme);
     }
 
     public event EventHandler<string> Picked;
 
     public event EventHandler<string> QueryChanged;
+
+    public event EventHandler LadderRequested;
 
     public void Apply(StageTheme theme)
     {
@@ -88,6 +108,10 @@ internal sealed class SongPicker : UserControl
         _search.ForeColor = _theme.Text;
         _results.BackColor = _theme.Page;
         _results.ForeColor = _theme.Text;
+        _ladder.BackColor = _theme.Page;
+        _ladder.ForeColor = _theme.Text;
+        _ladder.FlatAppearance.MouseOverBackColor = _theme.Card;
+        _ladder.FlatAppearance.MouseDownBackColor = _theme.Line;
         Invalidate(true);
     }
 
@@ -121,7 +145,9 @@ internal sealed class SongPicker : UserControl
         int width = Math.Min(560, Math.Max(200, ClientSize.Width - 80));
         int x = Math.Max(24, (ClientSize.Width - width) / 2);
         int y = 36;
-        _heading.SetBounds(x, y, width, 46);
+        int ladderW = 120;
+        _heading.SetBounds(x, y, Math.Max(80, width - ladderW - 8), 46);
+        _ladder.SetBounds(x + width - ladderW, y + 8, ladderW, 32);
         _note.SetBounds(x, y + 48, width, 44);
         y += 104;
         if (_playing.Visible)
