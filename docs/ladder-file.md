@@ -27,4 +27,4 @@ A ladder file is JSON, UTF-8, no byte-order mark. Version 1 stores the duel hist
 
 The two top-level fields and the fields inside a duel may appear in any order. A missing field, an unknown field, a trailing comma, or a `version` other than 1 is rejected. The previous file is left in place.
 
-Saving writes a temporary file beside the destination and then replaces it. A missing file loads as an empty ladder and is not created until the first save. The MusicBee plugin keeps this file under MusicBee's persistent storage folder, in `ladder\ladder.json`. The engine does not choose that folder itself.
+Saving writes a temporary file beside the destination, flushes it, and then replaces the real file. A missing file loads as an empty ladder and is not created until the first save. The plugin writes that file after each answer that changes the ladder, again when its window closes, and again when MusicBee exits. The file lives under MusicBee's persistent storage folder, in `ladder\ladder.json`. The engine does not choose that folder itself.

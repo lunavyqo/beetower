@@ -67,14 +67,34 @@ public static class LadderFile
         var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         try
         {
-            File.WriteAllText(temporary, LadderJson.Write(book), encoding);
-            if (File.Exists(path))
+            using (FileStream stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            using (StreamWriter writer = new StreamWriter(stream, encoding))
             {
-                File.Replace(temporary, path, null);
+                writer.Write(LadderJson.Write(book));
+                writer.Flush();
+                stream.Flush(true);
             }
-            else
+
+            try
             {
-                File.Move(temporary, path);
+                if (File.Exists(path))
+                {
+                    File.Replace(temporary, path, null);
+                }
+                else
+                {
+                    File.Move(temporary, path);
+                }
+            }
+            catch (IOException)
+            {
+                File.Copy(temporary, path, true);
+                File.Delete(temporary);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                File.Copy(temporary, path, true);
+                File.Delete(temporary);
             }
         }
         catch (Exception exception)

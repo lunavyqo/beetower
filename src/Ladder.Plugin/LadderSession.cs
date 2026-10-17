@@ -24,6 +24,7 @@ internal sealed class SeekRequest : EventArgs
 internal sealed class LadderSession
 {
     private readonly string _path;
+    private readonly object _saveGate = new object();
     private string[] _libraryUrls = new string[0];
     private bool _canSave;
     private bool _dirty;
@@ -341,13 +342,16 @@ internal sealed class LadderSession
 
     public void Save()
     {
-        if (!_dirty || !_canSave)
+        lock (_saveGate)
         {
-            return;
-        }
+            if (!_dirty || !_canSave)
+            {
+                return;
+            }
 
-        LadderFile.Save(_path, Controller.Book);
-        _dirty = false;
+            LadderFile.Save(_path, Controller.Book);
+            _dirty = false;
+        }
     }
 
     private bool GuardWritable()
@@ -367,6 +371,13 @@ internal sealed class LadderSession
         if (!ReferenceEquals(before, Controller.Book))
         {
             _dirty = true;
+            try
+            {
+                Save();
+            }
+            catch (LadderFileException)
+            {
+            }
         }
 
         Recount();

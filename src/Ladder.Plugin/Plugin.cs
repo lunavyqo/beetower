@@ -581,6 +581,7 @@ public partial class Plugin
                 MinimumSize = new Size(760, 520),
                 ShowInTaskbar = false,
             };
+            _window.FormClosing += (sender, args) => Save();
             _window.Controls.Add(CreateView());
         }
 
