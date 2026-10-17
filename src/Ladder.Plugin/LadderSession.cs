@@ -48,6 +48,8 @@ internal sealed class LadderSession
 
     public event EventHandler Changed;
 
+    public event EventHandler BookChanged;
+
     public event EventHandler PlaybackChanged;
 
     public event EventHandler<SeekRequest> SeekRequested;
@@ -380,9 +382,14 @@ internal sealed class LadderSession
             }
         }
 
+        bool changed = !ReferenceEquals(before, Controller.Book);
         Recount();
         Note = null;
         Changed?.Invoke(this, EventArgs.Empty);
+        if (changed && BookChanged != null)
+        {
+            BookChanged(this, EventArgs.Empty);
+        }
     }
 
     private void Recount()

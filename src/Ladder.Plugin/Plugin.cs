@@ -12,6 +12,10 @@ public partial class Plugin
     private Form _window;
     private string[] _library = new string[0];
     private bool _libraryLoaded;
+    private string _unratedUrl;
+    private bool _refreshingUnrated;
+    private const string UnratedPlaylistName = "unrated";
+    private const string LovedQuery = "<SmartPlaylist><Source Type=\"1\"><Conditions CombineMethod=\"All\"><Condition Field=\"RatingLoveBan\" Comparison=\"Is\" Value=\"L\" /></Conditions></Source></SmartPlaylist>";
     private bool _menusAdded;
     private string _anchorUrl;
     private System.Windows.Forms.Timer _clock;
@@ -39,7 +43,7 @@ public partial class Plugin
         _about.Revision = (short)version.Build;
         _about.MinInterfaceVersion = MinInterfaceVersion;
         _about.MinApiRevision = MinApiRevision;
-        _about.ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents;
+        _about.ReceiveNotifications = (ReceiveNotificationFlags)((int)ReceiveNotificationFlags.PlayerEvents | (int)ReceiveNotificationFlags.TagEvents);
         _about.ConfigurationPanelHeight = 0;
         return _about;
     }
@@ -65,14 +69,29 @@ public partial class Plugin
 
     public void ReceiveNotification(string sourceFileUrl, NotificationType type)
     {
-        if (type == NotificationType.PluginStartup)
+        if (type == NotificationType.PluginStartup || type == NotificationType.MusicBeeStarted)
         {
             EnsureSession();
             AddMenus();
+            if (type == NotificationType.MusicBeeStarted)
+            {
+                _libraryLoaded = false;
+            }
+
+            RefreshUnrated();
         }
         else if (type == NotificationType.ShutdownStarted)
         {
             Save();
+        }
+        else if (type == NotificationType.RatingChanged || type == NotificationType.TagsChanged)
+        {
+            RefreshUnrated();
+        }
+        else if (type == NotificationType.FileAddedToLibrary || type == NotificationType.FileDeleted)
+        {
+            _libraryLoaded = false;
+            RefreshUnrated();
         }
         else if (type == NotificationType.TrackChanged || type == NotificationType.PlayStateChanged)
         {
@@ -112,6 +131,7 @@ public partial class Plugin
         _session.SelectedChoice = delegate { return ChoiceFor(SelectedUrl(), "Selected"); };
         _session.FindTracks = SearchTracks;
         _session.LoadArt = LoadArt;
+        _session.BookChanged += (sender, args) => RefreshUnrated();
         _session.SetPlaying(PlayingUrl());
         _clock = new System.Windows.Forms.Timer();
         _clock.Interval = 200;
@@ -222,6 +242,123 @@ public partial class Plugin
         {
             _session.SetLibrary(_library);
         }
+    }
+
+    private void RefreshUnrated()
+    {
+        if (_refreshingUnrated || _session == null)
+        {
+            return;
+        }
+
+        _refreshingUnrated = true;
+        try
+        {
+            string[] liked = LovedFiles();
+            string[] keep = UnplacedLiked.Select(liked, _session.Controller.Book);
+            string playlist = UnratedPlaylist();
+            if (string.IsNullOrEmpty(playlist))
+            {
+                _unratedUrl = _api.Playlist_CreatePlaylist("", UnratedPlaylistName, keep);
+                return;
+            }
+
+            if (SameFiles(playlist, keep))
+            {
+                return;
+            }
+
+            if (!_api.Playlist_SetFiles(playlist, keep))
+            {
+                _unratedUrl = null;
+            }
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                _api.MB_Trace("Ladder could not update unrated: " + exception.Message);
+            }
+            catch (Exception)
+            {
+            }
+        }
+        finally
+        {
+            _refreshingUnrated = false;
+        }
+    }
+
+    private string[] LovedFiles()
+    {
+        string[] loved;
+        if (_api.Library_QueryFilesEx(LovedQuery, out loved) && loved != null)
+        {
+            return loved;
+        }
+
+        EnsureLibrary();
+        var found = new List<string>();
+        for (int i = 0; i < _library.Length; i++)
+        {
+            string mark = _api.Library_GetFileTag(_library[i], MetaDataType.RatingLove);
+            if (string.Equals(mark, "L", StringComparison.OrdinalIgnoreCase))
+            {
+                found.Add(_library[i]);
+            }
+        }
+
+        return found.ToArray();
+    }
+
+    private string UnratedPlaylist()
+    {
+        if (!string.IsNullOrEmpty(_unratedUrl))
+        {
+            return _unratedUrl;
+        }
+
+        if (!_api.Playlist_QueryPlaylists())
+        {
+            return null;
+        }
+
+        string url;
+        while (!string.IsNullOrEmpty(url = _api.Playlist_QueryGetNextPlaylist()))
+        {
+            if (string.Equals(_api.Playlist_GetName(url), UnratedPlaylistName, StringComparison.OrdinalIgnoreCase))
+            {
+                _unratedUrl = url;
+                return url;
+            }
+        }
+
+        return null;
+    }
+
+    private bool SameFiles(string playlist, string[] keep)
+    {
+        string[] current;
+        if (!_api.Playlist_QueryFilesEx(playlist, out current) || current == null)
+        {
+            return false;
+        }
+
+        if (current.Length != keep.Length)
+        {
+            return false;
+        }
+
+        var seen = new HashSet<string>(current, StringComparer.Ordinal);
+        for (int i = 0; i < keep.Length; i++)
+        {
+            if (!seen.Contains(keep[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void AddMenus()
