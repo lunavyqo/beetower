@@ -14,7 +14,7 @@ Three ways to turn "which song is better?" into an order were considered.
 
 **Glicko-2.** Each track has a rating, a deviation, and a volatility. A new track starts at rating 1500, deviation 350, volatility 0.06. Wins against strong tracks move a wide rating a long way. Wins that were already expected move a narrow rating a little. A draw is a real outcome (score 0.5), which matters for songs that feel the same. The 95% interval is the rating plus or minus twice the deviation, which is the honest replacement for a hand-typed decimal.
 
-Ladder uses both of the useful parts. Binary search chooses the questions while a track is being placed, because those questions halve the library and stay understandable. Glicko-2 records every answer, so the stored result is a strength with a width, and a later answer can move the track. A second mode then asks about pairs whose ratings are close and whose deviations are still wide. That is the part binary insertion never does: checking the songs that actually sit next to each other.
+The order is the comparisons. Binary search chooses the questions while a track is being placed, and the finished run inserts that track into one slot. A song already on the ladder stays where it is when it is only the opponent. Between two songs that are both already placed, only the one that joined later moves, and only far enough to agree with the answer. Glicko-2 is still computed and stored on each track. It does not sort the ladder and it is not shown.
 
 A full Bradley-Terry refit of the whole history was set aside. It is a good future check, which is why every duel is stored, and it is more machinery than the plugin needs in order to update one pair at a time.
 
@@ -94,7 +94,7 @@ The expected score `E` is also the chance that the player beats that opponent. P
 
 The listener picks the song being rated. Ladder chooses the other song. With an empty ladder, the first pick waits for a second song, and that one comparison is the whole run, so both songs join the ladder. After that, a picked song is held out of the ranking while binary search walks the ladder. The answers are applied together when the run finishes, and only then does the song get a rank.
 
-Place mode inserts one focus track into the ladder with as few questions as a binary search needs. The opponents are the other tracks that already have at least one comparison, sorted from weakest rating to strongest, frozen at the moment the session starts. Later answers update strengths immediately, but they do not reshuffle the list the search is walking, so the questions keep halving the same range.
+Place mode inserts one focus track into the ladder with as few questions as a binary search needs. The opponents are the other tracks already on the ladder, weakest first, frozen at the moment the session starts. The answers are stored as the run goes, and the focus takes its slot only when the run finishes. The songs it was compared with do not reorder around it.
 
 Let the range be the half-open index interval `[low, high)`.
 
@@ -131,13 +131,11 @@ Side of the screen alternates with the number of stored duels, so the stronger t
 
 The identity of a track is the file URL MusicBee reports, compared as an ordinal string. Ladder does not rewrite paths.
 
-A track with no comparisons is unplaced. It is absent from the ranked list, and the UI says "not placed" rather than showing 1500 ± 700.
+A track with no comparisons is unplaced. It is absent from the ranked list, and the UI says "not placed".
 
-Rank is a view: higher rating first. Equal ratings break by more comparisons, then by URL ordinal.
+Rank is the comparison order, strongest first. The list shows that place and not a strength. There is no `1640 ± 80` on a song.
 
-The number shown is the rating rounded to an integer, then `±` the integer rounding of twice the calendar-widened deviation. That `±` is half the width of the 95% interval from the paper (rating ± 2 RD). Example shape: `1640 ± 80`.
-
-Against the next-weaker ranked track, the gap is "clear of the next track" when the rating gap is larger than twice the sum of the two widened deviations. Otherwise the gap is "overlapping the next track". The strongest track has no track above it. The weakest has no next-weaker track, so the hint is omitted there.
+Against the next-weaker ranked track, the gap is "clear of the next track" when the stored rating gap is larger than twice the sum of the two widened deviations. Otherwise the gap is "overlapping the next track". The strongest track has no track above it. The weakest has no next-weaker track, so the hint is omitted there. The gap is not shown in the window.
 
 Duels are the source of truth. Each one stores the UTC time, both URLs, the display title, artist, and album heard at the time, the outcome, and the mode (`place` or `sharpen`). The track table is a cache of strengths rebuilt from those duels. Replaying the duel list from unrated strengths must reproduce the cache. A later comparison replaces a cached title, artist, or album only when the new value is non-empty, so a missing tag does not erase a name already known for that URL.
 

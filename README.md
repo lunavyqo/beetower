@@ -35,6 +35,6 @@ The song you picked stays on the left. Click either cover to listen. The title, 
 
 While a track is being placed, the song on the left stays put and the one on the right is the next comparison from the middle of the ladder, then half of what remains.
 
-Sharpen mode asks about two tracks whose ratings are close and still uncertain. **About the same** is a real answer. Skip does not record one.
+The ladder is that order. A song shows its place, such as `#10`, or "not placed" until its run finishes. Comparing a new song with one already on the ladder does not move the older song. **About the same** is a real answer. Skip does not record one.
 
-The number on a track looks like `1640 ± 80`. The first figure is the strength. The `±` is how wide that estimate still is. A new track says "not placed" until it has been compared. The bar under each song is its playback position. Drag it to move through that song.
+The bar under each song is its playback position. Drag it to move through that song.

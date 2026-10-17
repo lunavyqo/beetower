@@ -209,20 +209,16 @@ internal sealed class LadderBoard : UserControl
             }
         }
 
-        int scoreWidth = 148;
         int rankWidth = 64;
         Rectangle rank = new Rectangle(e.Bounds.X + 16, e.Bounds.Y, rankWidth, e.Bounds.Height);
-        Rectangle score = new Rectangle(e.Bounds.Right - scoreWidth - 12, e.Bounds.Y, scoreWidth, e.Bounds.Height);
         int textX = rank.Right + 8;
-        int textW = Math.Max(20, score.X - textX - 12);
+        int textW = Math.Max(20, e.Bounds.Right - 16 - textX);
         Rectangle title = new Rectangle(textX, e.Bounds.Y + 10, textW, 26);
         Rectangle detail = new Rectangle(textX, e.Bounds.Y + 36, textW, 20);
         TextFormatFlags line = TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.Left;
-        TextFormatFlags end = TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.Right;
         TextRenderer.DrawText(graphics, "#" + row.Rank.ToString(CultureInfo.InvariantCulture), _rankFont, rank, playing ? _theme.Text : _theme.Muted, line);
         TextRenderer.DrawText(graphics, DisplayTitle(row.Track), _rows.Font, title, _theme.Text, line);
         TextRenderer.DrawText(graphics, JoinDetail(row.Track.Artist, row.Track.Album), _detailFont, detail, _theme.Muted, line);
-        TextRenderer.DrawText(graphics, row.ScoreText, _detailFont, score, _theme.Text, end);
         using (Pen rule = new Pen(_theme.Line))
         {
             graphics.DrawLine(rule, e.Bounds.X + 16, e.Bounds.Bottom - 1, e.Bounds.Right - 12, e.Bounds.Bottom - 1);

@@ -24,19 +24,28 @@ public sealed class RankedTrack
 }
 
 /// <summary>
-/// Immutable ladder. <see cref="Apply"/> scores one answer from the strengths
-/// both tracks had before that answer. <see cref="Replay"/> rebuilds the cache from duels.
+/// Immutable ladder. Duels are replayed into a strongest-first order.
+/// A song already on the ladder does not move when a new song is only compared with it.
+/// The newer of two placed songs is the one that moves if their order contradicts the answer.
 /// </summary>
 public sealed class LadderBook
 {
     private readonly DuelRecord[] _duels;
     private readonly Dictionary<string, TrackState> _tracks;
     private readonly TrackState[] _trackList;
+    private readonly string[] _order;
+    private readonly Dictionary<string, int> _joined;
 
-    private LadderBook(DuelRecord[] duels, Dictionary<string, TrackState> tracks)
+    private LadderBook(
+        DuelRecord[] duels,
+        Dictionary<string, TrackState> tracks,
+        string[] order,
+        Dictionary<string, int> joined)
     {
         _duels = duels;
         _tracks = tracks;
+        _order = order;
+        _joined = joined;
         _trackList = new TrackState[tracks.Count];
         tracks.Values.CopyTo(_trackList, 0);
         Array.Sort(_trackList, (left, right) => string.CompareOrdinal(left.Url, right.Url));
@@ -44,7 +53,9 @@ public sealed class LadderBook
 
     public static LadderBook Empty { get; } = new(
         Array.Empty<DuelRecord>(),
-        new Dictionary<string, TrackState>(StringComparer.Ordinal));
+        new Dictionary<string, TrackState>(StringComparer.Ordinal),
+        Array.Empty<string>(),
+        new Dictionary<string, int>(StringComparer.Ordinal));
 
     public IReadOnlyList<DuelRecord> Duels => Array.AsReadOnly(_duels);
 
@@ -76,8 +87,10 @@ public sealed class LadderBook
         var duels = new DuelRecord[_duels.Length + 1];
         Array.Copy(_duels, duels, _duels.Length);
         duels[_duels.Length] = duel;
-        Score(tracks, duel);
-        return new LadderBook(duels, tracks);
+        var order = new List<string>(_order);
+        var joined = new Dictionary<string, int>(_joined, StringComparer.Ordinal);
+        Score(tracks, order, joined, duel, _duels.Length);
+        return new LadderBook(duels, tracks, order.ToArray(), joined);
     }
 
     public static LadderBook Replay(IReadOnlyList<DuelRecord> duels)
@@ -88,43 +101,40 @@ public sealed class LadderBook
         }
 
         var tracks = new Dictionary<string, TrackState>(StringComparer.Ordinal);
+        var order = new List<string>();
+        var joined = new Dictionary<string, int>(StringComparer.Ordinal);
         var copy = new DuelRecord[duels.Count];
         for (int i = 0; i < duels.Count; i++)
         {
             DuelRecord duel = duels[i] ?? throw new ArgumentException("Duel is missing.", nameof(duels));
-            Score(tracks, duel);
+            Score(tracks, order, joined, duel, i);
             copy[i] = duel;
         }
 
-        return new LadderBook(copy, tracks);
+        return new LadderBook(copy, tracks, order.ToArray(), joined);
     }
 
     public IReadOnlyList<RankedTrack> Rank(DateTime utc)
     {
         DateTime at = LadderTime.AsUtc(utc);
-        var ordered = new List<TrackState>(_tracks.Count);
-        foreach (TrackState track in _tracks.Values)
+        var ranked = new RankedTrack[_order.Length];
+        for (int i = 0; i < _order.Length; i++)
         {
-            if (track.ComparisonCount > 0)
-            {
-                ordered.Add(track);
-            }
-        }
-
-        ordered.Sort(CompareStrongestFirst);
-        var ranked = new RankedTrack[ordered.Count];
-        for (int i = 0; i < ordered.Count; i++)
-        {
-            TrackState track = ordered[i];
+            TrackState track = _tracks[_order[i]];
             Strength effective = track.EffectiveAt(at);
-            Strength? nextWeaker = i + 1 < ordered.Count ? ordered[i + 1].EffectiveAt(at) : null;
+            Strength? nextWeaker = i + 1 < _order.Length ? _tracks[_order[i + 1]].EffectiveAt(at) : null;
             ranked[i] = new RankedTrack(i + 1, track, effective, RatingText.Gap(effective, nextWeaker));
         }
 
         return ranked;
     }
 
-    private static void Score(Dictionary<string, TrackState> tracks, DuelRecord duel)
+    private static void Score(
+        Dictionary<string, TrackState> tracks,
+        List<string> order,
+        Dictionary<string, int> joined,
+        DuelRecord duel,
+        int stamp)
     {
         TrackState left = ExistingOrNew(tracks, duel.Left);
         TrackState right = ExistingOrNew(tracks, duel.Right);
@@ -134,6 +144,85 @@ public sealed class LadderBook
         Strength rightAfter = Glicko2.Update(rightBefore, new[] { leftBefore }, new[] { duel.ScoreFor(right.Url) });
         tracks[left.Url] = left.After(duel.Left, leftAfter, duel.Utc);
         tracks[right.Url] = right.After(duel.Right, rightAfter, duel.Utc);
+        Place(order, joined, duel, stamp);
+    }
+
+    private static void Place(List<string> order, Dictionary<string, int> joined, DuelRecord duel, int stamp)
+    {
+        if (duel.Outcome == DuelOutcome.Draw)
+        {
+            SitBeside(order, joined, duel.Left.Url, duel.Right.Url, stamp);
+            return;
+        }
+
+        string winner = duel.Outcome == DuelOutcome.LeftWins ? duel.Left.Url : duel.Right.Url;
+        string loser = duel.Outcome == DuelOutcome.LeftWins ? duel.Right.Url : duel.Left.Url;
+        int winnerAt = order.IndexOf(winner);
+        int loserAt = order.IndexOf(loser);
+        if (winnerAt < 0 && loserAt < 0)
+        {
+            order.Add(winner);
+            order.Add(loser);
+            joined[winner] = stamp;
+            joined[loser] = stamp;
+            return;
+        }
+
+        if (winnerAt < 0)
+        {
+            order.Insert(loserAt, winner);
+            joined[winner] = stamp;
+            return;
+        }
+
+        if (loserAt < 0)
+        {
+            order.Insert(winnerAt + 1, loser);
+            joined[loser] = stamp;
+            return;
+        }
+
+        if (winnerAt < loserAt)
+        {
+            return;
+        }
+
+        if (joined[winner] >= joined[loser])
+        {
+            order.RemoveAt(winnerAt);
+            order.Insert(order.IndexOf(loser), winner);
+            return;
+        }
+
+        order.RemoveAt(loserAt);
+        order.Insert(order.IndexOf(winner) + 1, loser);
+    }
+
+    private static void SitBeside(List<string> order, Dictionary<string, int> joined, string left, string right, int stamp)
+    {
+        int leftAt = order.IndexOf(left);
+        int rightAt = order.IndexOf(right);
+        if (leftAt < 0 && rightAt < 0)
+        {
+            order.Add(left);
+            order.Add(right);
+            joined[left] = stamp;
+            joined[right] = stamp;
+            return;
+        }
+
+        if (leftAt < 0)
+        {
+            order.Insert(rightAt + 1, left);
+            joined[left] = stamp;
+            return;
+        }
+
+        if (rightAt < 0)
+        {
+            order.Insert(leftAt + 1, right);
+            joined[right] = stamp;
+        }
     }
 
     private static TrackState ExistingOrNew(Dictionary<string, TrackState> tracks, TrackSnapshot snapshot)
@@ -144,22 +233,5 @@ public sealed class LadderBook
         }
 
         return new TrackState(snapshot.Url, string.Empty, string.Empty, string.Empty, Strength.Unrated, 0, null);
-    }
-
-    private static int CompareStrongestFirst(TrackState left, TrackState right)
-    {
-        int byRating = right.Strength.Rating.CompareTo(left.Strength.Rating);
-        if (byRating != 0)
-        {
-            return byRating;
-        }
-
-        int byCount = right.ComparisonCount.CompareTo(left.ComparisonCount);
-        if (byCount != 0)
-        {
-            return byCount;
-        }
-
-        return string.CompareOrdinal(left.Url, right.Url);
     }
 }

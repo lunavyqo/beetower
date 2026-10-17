@@ -10,3 +10,4 @@
 - A song joins the ladder only after its placement run finishes, not after the first comparison.
 - When that run finishes, Ladder shows the song's rank and stays there until you rate another song.
 - The ladder lists every placed song, strongest first. Open it from the song picker, the finish screen, or a comparison.
+- The order is the comparisons. A song already on the ladder stays put when it is only the opponent, and the list no longer shows a strength.

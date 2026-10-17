@@ -130,6 +130,32 @@ public sealed class LadderBookTests
     }
 
     [Fact]
+    public void Rank_KeepsAnOpponentStillWhenANewSongIsPlacedAgainstIt()
+    {
+        LadderBook book = LadderBook.Empty
+            .Apply(Duel("anthem", "zebra", DuelOutcome.RightWins, T0))
+            .Apply(Duel("bird", "zebra", DuelOutcome.RightWins, T0.AddMinutes(1)))
+            .Apply(Duel("bird", "anthem", DuelOutcome.LeftWins, T0.AddMinutes(2)));
+
+        Assert.Equal(new[] { "zebra", "bird", "anthem" }, Urls(book));
+
+        book = book.Apply(Duel("eyes", "bird", DuelOutcome.LeftWins, T0.AddMinutes(3)));
+
+        Assert.Equal(new[] { "zebra", "eyes", "bird", "anthem" }, Urls(book));
+    }
+
+    [Fact]
+    public void Rank_MovesOnlyTheNewerSongWhenTwoPlacedSongsDisagree()
+    {
+        LadderBook book = LadderBook.Empty
+            .Apply(Duel("a", "b", DuelOutcome.LeftWins, T0))
+            .Apply(Duel("b", "c", DuelOutcome.LeftWins, T0.AddMinutes(1)))
+            .Apply(Duel("c", "a", DuelOutcome.LeftWins, T0.AddMinutes(2)));
+
+        Assert.Equal(new[] { "c", "a", "b" }, Urls(book));
+    }
+
+    [Fact]
     public void Rank_WidensTheDisplayedBandWithoutChangingTheStoredRating()
     {
         LadderBook book = LadderBook.Empty.Apply(Duel("a", "b", DuelOutcome.LeftWins, T0));
@@ -153,6 +179,11 @@ public sealed class LadderBookTests
             new TrackSnapshot(right, right.ToUpperInvariant(), "Artist", "Album"),
             outcome,
             mode);
+    }
+
+    private static string[] Urls(LadderBook book)
+    {
+        return book.Rank(T0).Select(row => row.Track.Url).ToArray();
     }
 
     private static void Close(Strength expected, Strength actual)

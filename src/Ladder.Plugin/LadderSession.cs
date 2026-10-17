@@ -418,7 +418,7 @@ internal sealed class LadderSession
                 continue;
             }
 
-            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "   ·   " + row.ScoreText;
+            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture);
         }
 
         return RatingText.NotPlaced;

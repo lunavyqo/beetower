@@ -401,7 +401,7 @@ internal sealed class LadderView : UserControl
                 continue;
             }
 
-            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture) + "   ·   " + row.ScoreText;
+            return "#" + row.Rank.ToString(CultureInfo.InvariantCulture);
         }
 
         return RatingText.NotPlaced;
