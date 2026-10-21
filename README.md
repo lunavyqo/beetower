@@ -25,7 +25,7 @@ You pick the song you want to rate. Ladder chooses the song on the other side. C
 
 **The ladder** lists every song that has finished a run, strongest first. Open it from the song picker, the finish screen, or the comparison. Click a row to play that song.
 
-The **unrated** playlist is every liked song that is not on the ladder yet. Liked means MusicBee's Love mark. Ladder refreshes that playlist when a song joins the ladder and when a song is liked or unliked.
+The **unrated** playlist is every liked song that is not on the ladder yet. Liked means MusicBee's Love mark. The **ladder** playlist is the same order as the ladder, strongest first. Both refresh when a song joins the ladder, and **unrated** also refreshes when a song is liked or unliked.
 
 MusicBee does not let a plugin add a tab beside Music or Playlists. Tools → Ladder is the way in.
 

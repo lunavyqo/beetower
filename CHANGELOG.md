@@ -13,3 +13,4 @@
 - The order is the comparisons. A song already on the ladder stays put when it is only the opponent, and the list no longer shows a strength.
 - Each answer that changes the ladder is written to disk immediately, and again when the window or MusicBee closes.
 - The playlist **unrated** is every liked song that does not yet have a place on the ladder.
+- The playlist **ladder** follows the ladder, strongest song first.

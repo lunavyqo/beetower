@@ -13,8 +13,10 @@ public partial class Plugin
     private string[] _library = new string[0];
     private bool _libraryLoaded;
     private string _unratedUrl;
-    private bool _refreshingUnrated;
+    private string _ladderUrl;
+    private bool _refreshingPlaylists;
     private const string UnratedPlaylistName = "unrated";
+    private const string LadderPlaylistName = "ladder";
     private const string LovedQuery = "<SmartPlaylist><Source Type=\"1\"><Conditions CombineMethod=\"All\"><Condition Field=\"RatingLoveBan\" Comparison=\"Is\" Value=\"L\" /></Conditions></Source></SmartPlaylist>";
     private bool _menusAdded;
     private string _anchorUrl;
@@ -78,7 +80,7 @@ public partial class Plugin
                 _libraryLoaded = false;
             }
 
-            RefreshUnrated();
+            RefreshPlaylists();
         }
         else if (type == NotificationType.ShutdownStarted)
         {
@@ -86,12 +88,12 @@ public partial class Plugin
         }
         else if (type == NotificationType.RatingChanged || type == NotificationType.TagsChanged)
         {
-            RefreshUnrated();
+            RefreshPlaylists();
         }
         else if (type == NotificationType.FileAddedToLibrary || type == NotificationType.FileDeleted)
         {
             _libraryLoaded = false;
-            RefreshUnrated();
+            RefreshPlaylists();
         }
         else if (type == NotificationType.TrackChanged || type == NotificationType.PlayStateChanged)
         {
@@ -131,7 +133,7 @@ public partial class Plugin
         _session.SelectedChoice = delegate { return ChoiceFor(SelectedUrl(), "Selected"); };
         _session.FindTracks = SearchTracks;
         _session.LoadArt = LoadArt;
-        _session.BookChanged += (sender, args) => RefreshUnrated();
+        _session.BookChanged += (sender, args) => RefreshPlaylists();
         _session.SetPlaying(PlayingUrl());
         _clock = new System.Windows.Forms.Timer();
         _clock.Interval = 200;
@@ -244,40 +246,27 @@ public partial class Plugin
         }
     }
 
-    private void RefreshUnrated()
+    private void RefreshPlaylists()
     {
-        if (_refreshingUnrated || _session == null)
+        if (_refreshingPlaylists || _session == null)
         {
             return;
         }
 
-        _refreshingUnrated = true;
+        _refreshingPlaylists = true;
         try
         {
+            LadderBook book = _session.Controller.Book;
             string[] liked = LovedFiles();
-            string[] keep = UnplacedLiked.Select(liked, _session.Controller.Book);
-            string playlist = UnratedPlaylist();
-            if (string.IsNullOrEmpty(playlist))
-            {
-                _unratedUrl = _api.Playlist_CreatePlaylist("", UnratedPlaylistName, keep);
-                return;
-            }
-
-            if (SameFiles(playlist, keep))
-            {
-                return;
-            }
-
-            if (!_api.Playlist_SetFiles(playlist, keep))
-            {
-                _unratedUrl = null;
-            }
+            string[] unrated = UnplacedLiked.Select(liked, book);
+            SyncPlaylist(ref _unratedUrl, UnratedPlaylistName, unrated, false);
+            SyncPlaylist(ref _ladderUrl, LadderPlaylistName, LadderSequence(book), true);
         }
         catch (Exception exception)
         {
             try
             {
-                _api.MB_Trace("Ladder could not update unrated: " + exception.Message);
+                _api.MB_Trace("Ladder could not update its playlists: " + exception.Message);
             }
             catch (Exception)
             {
@@ -285,7 +274,39 @@ public partial class Plugin
         }
         finally
         {
-            _refreshingUnrated = false;
+            _refreshingPlaylists = false;
+        }
+    }
+
+    private static string[] LadderSequence(LadderBook book)
+    {
+        IReadOnlyList<RankedTrack> rank = book.Rank(DateTime.UtcNow);
+        var urls = new string[rank.Count];
+        for (int i = 0; i < rank.Count; i++)
+        {
+            urls[i] = rank[i].Track.Url;
+        }
+
+        return urls;
+    }
+
+    private void SyncPlaylist(ref string cachedUrl, string name, string[] files, bool ordered)
+    {
+        string playlist = FindPlaylist(ref cachedUrl, name);
+        if (string.IsNullOrEmpty(playlist))
+        {
+            cachedUrl = _api.Playlist_CreatePlaylist("", name, files);
+            return;
+        }
+
+        if (ordered ? SameOrder(playlist, files) : SameFiles(playlist, files))
+        {
+            return;
+        }
+
+        if (!_api.Playlist_SetFiles(playlist, files))
+        {
+            cachedUrl = null;
         }
     }
 
@@ -311,11 +332,11 @@ public partial class Plugin
         return found.ToArray();
     }
 
-    private string UnratedPlaylist()
+    private string FindPlaylist(ref string cachedUrl, string name)
     {
-        if (!string.IsNullOrEmpty(_unratedUrl))
+        if (!string.IsNullOrEmpty(cachedUrl))
         {
-            return _unratedUrl;
+            return cachedUrl;
         }
 
         if (!_api.Playlist_QueryPlaylists())
@@ -326,9 +347,9 @@ public partial class Plugin
         string url;
         while (!string.IsNullOrEmpty(url = _api.Playlist_QueryGetNextPlaylist()))
         {
-            if (string.Equals(_api.Playlist_GetName(url), UnratedPlaylistName, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(_api.Playlist_GetName(url), name, StringComparison.OrdinalIgnoreCase))
             {
-                _unratedUrl = url;
+                cachedUrl = url;
                 return url;
             }
         }
@@ -353,6 +374,25 @@ public partial class Plugin
         for (int i = 0; i < keep.Length; i++)
         {
             if (!seen.Contains(keep[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool SameOrder(string playlist, string[] keep)
+    {
+        string[] current;
+        if (!_api.Playlist_QueryFilesEx(playlist, out current) || current == null || current.Length != keep.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < keep.Length; i++)
+        {
+            if (!string.Equals(current[i], keep[i], StringComparison.Ordinal))
             {
                 return false;
             }
